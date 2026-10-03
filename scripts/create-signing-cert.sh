@@ -37,7 +37,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 36
 # macOS' keychain import wants the legacy PKCS#12 algorithms; OpenSSL 3 needs -legacy for that.
 LEGACY=()
 if openssl version | grep -q '^OpenSSL 3'; then LEGACY=(-legacy); fi
-openssl pkcs12 -export "${LEGACY[@]}" -inkey key.pem -in cert.pem -name "$NAME" \
+openssl pkcs12 -export ${LEGACY[@]+"${LEGACY[@]}"} -inkey key.pem -in cert.pem -name "$NAME" \
     -out cert.p12 -passout "pass:$PASSWORD"
 base64 < cert.p12 | tr -d '\n' > cert.p12.base64
 rm -f key.pem cert.cnf
