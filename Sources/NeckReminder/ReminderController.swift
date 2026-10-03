@@ -155,6 +155,13 @@ final class ReminderController: NSObject, ObservableObject {
             return
         }
 
+        // Moving the mouse while the "still there?" hint is up answers it; record that before
+        // the silence is processed so the user isn't asked the same thing again.
+        if freshInput && feedback.isProbeVisible {
+            probeConfirmed = true
+            feedback.hideProbe()
+        }
+
         let previousState = tracker.state
         let update = tracker.ingest(sample)
         recordTimeline(previousState: previousState, now: now)
@@ -325,10 +332,7 @@ final class ReminderController: NSObject, ObservableObject {
     private func updateProbe(snap: ActivityMonitor.Snapshot, sample: ActivitySample, context: PresenceContext,
                              model: PresenceModel, freshInput: Bool) {
         if feedback.isProbeVisible {
-            if freshInput {
-                probeConfirmed = true
-                feedback.hideProbe()
-            } else if tracker.state == .away || (feedback.probeAge ?? 0) > 90 {
+            if tracker.state == .away || (feedback.probeAge ?? 0) > 90 {
                 feedback.hideProbe()
             }
             return
@@ -556,7 +560,7 @@ final class ReminderController: NSObject, ObservableObject {
     /// "I'm reading / in a meeting": stillness is not treated as being away for a while.
     func holdPresence(minutes: Int) {
         prefs.presenceHoldUntil = Date().addingTimeInterval(TimeInterval(minutes * 60))
-        tick()
+        publish()
     }
 
     func cancelPresenceHold() {
