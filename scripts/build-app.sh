@@ -3,8 +3,10 @@
 #
 #   VERSION=1.2.3 BUILD_NUMBER=42 scripts/build-app.sh
 #
-# Signing: ad-hoc by default. Set CODESIGN_IDENTITY="Developer ID Application: …" to sign
-# for distribution (hardened runtime + secure timestamp, ready for notarization).
+# Signing: ad-hoc by default. Set CODESIGN_IDENTITY to sign with a keychain identity:
+#   "Developer ID Application: …"  → hardened runtime + secure timestamp, ready for notarization
+#   a self-signed certificate name → stable identity, so macOS keeps granted permissions
+#                                    (Bluetooth) across updates (see create-signing-cert.sh)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -45,7 +47,8 @@ fi
 
 echo "==> Signing with identity: $IDENTITY"
 SIGN_FLAGS=(--force --options runtime --sign "$IDENTITY")
-if [[ "$IDENTITY" != "-" ]]; then SIGN_FLAGS+=(--timestamp); fi
+# Apple's timestamp service is for Developer ID; self-signed and ad-hoc builds skip it.
+if [[ "$IDENTITY" == "Developer ID"* ]]; then SIGN_FLAGS+=(--timestamp); fi
 codesign "${SIGN_FLAGS[@]}" "$APP"
 codesign --verify --strict --verbose=2 "$APP"
 

@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      verify_self_signed:
+        description: Also check the self-signed signing path with a throwaway certificate
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -31,7 +36,13 @@ jobs:
           swift --version
 
       - name: Unit tests (detection algorithm, schedule, routines)
-        run: swift test
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Compiler error summary
+        if: failure()
+        run: grep -E "error:" "$RUNNER_TEMP/build.log" | sed -E 's#^.*/Sources/##' | sort -u | head -60
 
       - name: Version
         id: version
@@ -44,25 +55,18 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
-      # Optional: Developer ID signing. Add these repository secrets to enable it:
+      # Optional signing. Add these repository secrets to enable it:
       #   MACOS_CERTIFICATE_P12 (base64 of the .p12), MACOS_CERTIFICATE_PASSWORD,
-      #   MACOS_SIGNING_IDENTITY (e.g. "Developer ID Application: Name (TEAMID)")
+      #   MACOS_SIGNING_IDENTITY (certificate name)
+      # Either a paid "Developer ID Application" certificate, or a free self-signed one
+      # from scripts/create-signing-cert.sh (keeps macOS permissions across updates).
       - name: Import signing certificate
         if: env.HAS_SIGNING == 'true'
         env:
           P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-        run: |
-          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
-          KEYCHAIN_PASSWORD="$(uuidgen)"
-          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
-          rm "$RUNNER_TEMP/cert.p12"
+          IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: scripts/ci-import-cert.sh
 
       - name: Build universal app
         env:
@@ -114,6 +118,36 @@ jobs:
             dist/*.dmg
             dist/*.zip
           generate_release_notes: true
+
+  # Proves the free self-signed path works end to end: create a certificate, import and
+  # trust it, sign the app, and check the signature's requirement is pinned to the
+  # certificate (which is what lets macOS keep permissions across updates).
+  verify-self-signed:
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_self_signed
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create throwaway certificate
+        id: cert
+        run: |
+          scripts/create-signing-cert.sh "NeckReminder CI Test" "$RUNNER_TEMP/cert" | tee "$RUNNER_TEMP/out.txt"
+          echo "password=$(sed -n 's/^  MACOS_CERTIFICATE_PASSWORD  //p' "$RUNNER_TEMP/out.txt")" >> "$GITHUB_OUTPUT"
+      - name: Import
+        env:
+          IDENTITY: NeckReminder CI Test
+          P12_PASSWORD: ${{ steps.cert.outputs.password }}
+        run: P12="$(cat "$RUNNER_TEMP/cert/cert.p12.base64")" scripts/ci-import-cert.sh
+      - name: Build and sign
+        env:
+          CODESIGN_IDENTITY: NeckReminder CI Test
+          ARCHS: arm64
+        run: scripts/build-app.sh
+      - name: Check signature
+        run: |
+          codesign -dvv dist/NeckReminder.app 2>&1 | grep -E "Authority|Identifier|Signature"
+          REQ="$(codesign -d -r- dist/NeckReminder.app 2>&1)"
+          echo "$REQ"
+          echo "$REQ" | grep -q 'certificate leaf = H"' || echo "$REQ" | grep -q 'certificate root = H"'
 
   # Keep the Actions page tidy: only the newest build's artifact and the last few runs survive.
   cleanup:

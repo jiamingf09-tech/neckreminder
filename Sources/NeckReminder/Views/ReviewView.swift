@@ -292,8 +292,8 @@ struct TimelineBar: View {
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05))
                     ForEach(Array(segments.enumerated()), id: \.offset) { _, s in
-                        let x = geo.size.width * s.start.timeIntervalSince(r.start) / span
-                        let w = max(1, geo.size.width * s.duration / span)
+                        let x = geo.size.width * CGFloat(s.start.timeIntervalSince(r.start) / span)
+                        let w = max(1, geo.size.width * CGFloat(s.duration / span))
                         Rectangle()
                             .fill(Self.color(s.kind))
                             .frame(width: w, height: geo.size.height)
@@ -305,7 +305,7 @@ struct TimelineBar: View {
             .frame(height: 30)
             GeometryReader { geo in
                 ForEach(Array(stride(from: 0, through: hours, by: step)), id: \.self) { h in
-                    let x = geo.size.width * Double(h) * 3600 / span
+                    let x = geo.size.width * CGFloat(Double(h) * 3600 / span)
                     Text(Self.hourLabel(r.start.addingTimeInterval(Double(h) * 3600)))
                         .scaledFont(10)
                         .foregroundColor(.secondary)
