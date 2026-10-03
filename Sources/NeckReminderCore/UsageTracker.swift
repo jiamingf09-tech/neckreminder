@@ -17,19 +17,29 @@ public struct ActivitySample: Equatable {
     /// A GUI app is holding a "keep the display on" power assertion — typically
     /// video playback or a video call. Used to give passive viewing a longer grace period.
     public var mediaPlaying: Bool
+    /// Context-specific grace period (from the learned presence model). Overrides the
+    /// fixed reading / media grace when set.
+    public var graceOverride: TimeInterval?
+    /// When `hardAway` comes from a signal that knows *when* the user left (e.g. their
+    /// AirPods walking out of range), the moment they left.
+    public var awayHintSince: Date?
 
     public init(date: Date,
                 idleSeconds: TimeInterval,
                 strongIdleSeconds: TimeInterval? = nil,
                 hardAway: Bool = false,
                 slept: Bool = false,
-                mediaPlaying: Bool = false) {
+                mediaPlaying: Bool = false,
+                graceOverride: TimeInterval? = nil,
+                awayHintSince: Date? = nil) {
         self.date = date
         self.idleSeconds = max(0, idleSeconds)
         self.strongIdleSeconds = max(0, strongIdleSeconds ?? idleSeconds)
         self.hardAway = hardAway
         self.slept = slept
         self.mediaPlaying = mediaPlaying
+        self.graceOverride = graceOverride
+        self.awayHintSince = awayHintSince
     }
 }
 
@@ -58,6 +68,8 @@ public struct TrackerConfig: Equatable {
     public var returnConfirmSamples: Int = 2
     /// Mouse-only evidence older than this is forgotten.
     public var returnEvidenceWindow: TimeInterval = 20
+    /// Silences at least this long are reported as `GapInfo` when they end.
+    public var minReportedGap: TimeInterval = 60
 
     public init() {}
 }
@@ -73,8 +85,39 @@ public struct TrackerUpdate: Equatable {
     /// The user came back after being away for this long.
     public var returnedAfter: TimeInterval?
     public var stateChanged = false
+    /// A silence (no input) of at least `minReportedGap` just ended with new input.
+    public var endedGap: GapInfo?
 
     public init() {}
+}
+
+/// A stretch without input that has just ended, and how the tracker accounted for it.
+public struct GapInfo: Equatable, Codable {
+    /// Last input before the silence.
+    public var start: Date
+    /// First input after it.
+    public var end: Date
+    /// true: the silence was counted as use (reading / watching).
+    /// false: it was treated as being away.
+    public var countedAsPresent: Bool
+    /// Being away reset the counter (it counted as a break).
+    public var didReset: Bool
+    /// Committed use when the absence began (to restore it if the user says they were here).
+    public var committedAtStart: TimeInterval
+    /// The screen was locked / asleep at some point during the silence.
+    public var hadHardAway: Bool
+
+    public var duration: TimeInterval { max(0, end.timeIntervalSince(start)) }
+
+    public init(start: Date, end: Date, countedAsPresent: Bool, didReset: Bool,
+                committedAtStart: TimeInterval, hadHardAway: Bool) {
+        self.start = start
+        self.end = end
+        self.countedAsPresent = countedAsPresent
+        self.didReset = didReset
+        self.committedAtStart = committedAtStart
+        self.hadHardAway = hadHardAway
+    }
 }
 
 /// Estimates how long the user has been *continuously* using the computer.
@@ -106,8 +149,12 @@ public final class UsageTracker {
     /// Estimated moment of the most recent hardware input.
     public private(set) var lastInputDate: Date?
 
+    public private(set) var isSuspended = false
+
     private var breakCounted = false
     private var returnEvidence = 0
+    private var committedAtAwayStart: TimeInterval = 0
+    private var gapHadHardAway = false
 
     public init(config: TrackerConfig = TrackerConfig()) {
         self.config = config
@@ -118,7 +165,53 @@ public final class UsageTracker {
 
     /// Grace period that applies to a sample.
     public func grace(for sample: ActivitySample) -> TimeInterval {
-        sample.mediaPlaying ? max(config.readingGrace, config.mediaGrace) : config.readingGrace
+        if let override = sample.graceOverride { return max(config.activeWindow + 1, override) }
+        return sample.mediaPlaying ? max(config.readingGrace, config.mediaGrace) : config.readingGrace
+    }
+
+    // MARK: - Suspension (e.g. while a relax session runs)
+
+    /// Stop counting. Samples should not be ingested until `resume(at:)`.
+    public func suspend() {
+        isSuspended = true
+        pending = 0
+    }
+
+    /// Continue counting from `date` as if the user had just been active; the suspended
+    /// interval is not counted either way.
+    public func resume(at date: Date) {
+        isSuspended = false
+        lastSampleDate = date
+        lastInputDate = date
+        state = .active
+        awaySince = nil
+        breakCounted = false
+        returnEvidence = 0
+        gapHadHardAway = false
+    }
+
+    // MARK: - Correcting the past (user feedback)
+
+    /// The user says they were at the computer during `gap`: count it.
+    public func creditGap(_ gap: GapInfo) {
+        guard !gap.countedAsPresent else { return }
+        committed += (gap.didReset ? gap.committedAtStart : 0) + gap.duration
+    }
+
+    /// The user says they were away during `gap`: stop counting it.
+    /// Returns true when the absence was long enough to count as a break (counter reset).
+    @discardableResult
+    public func debitGap(_ gap: GapInfo) -> Bool {
+        guard gap.countedAsPresent else { return false }
+        if gap.duration >= config.breakReset {
+            // Whatever was done since the gap ended still counts.
+            let sinceReturn = lastSampleDate.map { max(0, $0.timeIntervalSince(gap.end)) } ?? 0
+            committed = min(committed, sinceReturn)
+            pending = 0
+            return true
+        }
+        committed = max(0, committed - gap.duration)
+        return false
     }
 
     /// Start a fresh cycle (user took a break / did the exercises).
@@ -157,11 +250,14 @@ public final class UsageTracker {
         if s.hardAway || s.slept {
             if state != .away {
                 // When the machine slept we were not observing; the absence began at the
-                // previous sample at the latest. Otherwise it began at the last input.
-                let since = s.slept ? min(last, previousInput ?? last)
+                // previous sample at the latest. Otherwise it began at the last input
+                // (or when an external signal says the user left, if that was later).
+                var since = s.slept ? min(last, previousInput ?? last)
                                     : s.date.addingTimeInterval(-s.idleSeconds)
+                if let hint = s.awayHintSince, hint > since, hint <= s.date { since = hint }
                 enterAway(since: since, &update)
             }
+            gapHadHardAway = true
             returnEvidence = 0
             checkBreak(now: s.date, &update)
             return update
@@ -178,10 +274,17 @@ public final class UsageTracker {
                 if returnEvidence >= config.returnConfirmSamples {
                     // Make sure a long absence is credited as a break even if we were
                     // never sampled in between (e.g. tracker resumed after a long pause).
-                    checkBreak(now: s.date.addingTimeInterval(-min(s.idleSeconds, dt)), &update)
+                    let inputMoment = s.date.addingTimeInterval(-min(s.idleSeconds, dt))
+                    checkBreak(now: inputMoment, &update)
                     if let since = awaySince {
                         update.returnedAfter = max(0, s.date.timeIntervalSince(since))
+                        if inputMoment.timeIntervalSince(since) >= config.minReportedGap {
+                            update.endedGap = GapInfo(start: since, end: inputMoment, countedAsPresent: false,
+                                                      didReset: breakCounted, committedAtStart: committedAtAwayStart,
+                                                      hadHardAway: gapHadHardAway)
+                        }
                     }
+                    gapHadHardAway = false
                     state = .active
                     awaySince = nil
                     breakCounted = false
@@ -195,6 +298,12 @@ public final class UsageTracker {
 
         case .active, .passive:
             if freshInput {
+                let inputMoment = s.date.addingTimeInterval(-s.idleSeconds)
+                if let previousInput, inputMoment.timeIntervalSince(previousInput) >= config.minReportedGap {
+                    update.endedGap = GapInfo(start: previousInput, end: inputMoment, countedAsPresent: true,
+                                              didReset: false, committedAtStart: committed,
+                                              hadHardAway: false)
+                }
                 // Present: everything since the last sample, plus any tentative time that
                 // preceded this input, is confirmed.
                 let gained = pending + dt
@@ -224,6 +333,7 @@ public final class UsageTracker {
         awaySince = since
         breakCounted = false
         returnEvidence = 0
+        committedAtAwayStart = committed
     }
 
     private func checkBreak(now: Date, _ update: inout TrackerUpdate) {
