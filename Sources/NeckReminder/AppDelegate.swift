@@ -58,7 +58,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(self.stats)
                 .environmentObject(self.controller)
                 .environmentObject(self.notifications)
-                .environmentObject(self.session))
+                .environmentObject(self.session)
+                .environmentObject(self.controller.learning)
+                .environmentObject(self.controller.bluetooth))
         }
 
         statusItem = StatusItemController(controller: controller, prefs: prefs)
@@ -71,9 +73,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.onOpenMain = { [weak self] in self?.mainWindow.show(.overview) }
         controller.onTick = { [weak self] in self?.statusItem.refresh() }
 
+        controller.session = session
         session.onStarted = { [weak self] in self?.controller.relaxSessionStarted() }
-        session.onEnded = { [weak self] completed, elapsed in
-            self?.controller.relaxSessionEnded(completed: completed, elapsed: elapsed)
+        session.onEnded = { [weak self] completed, active, total in
+            self?.controller.relaxSessionEnded(completed: completed, activeTime: active, totalTime: total)
         }
 
         // React to appearance settings.
@@ -131,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationWillTerminate(_ notification: Notification) {
-        stats.save()
+        controller.saveState()
         if let activity { ProcessInfo.processInfo.endActivity(activity) }
     }
 
@@ -207,7 +210,7 @@ enum MainMenu {
 
         let windowItem = NSMenuItem()
         let windowMenu = NSMenu(title: tr("窗口", "Window"))
-        windowMenu.addItem(withTitle: tr("放松指南", "Relax guide"), action: #selector(AppDelegate.showRelax(_:)), keyEquivalent: "r").target = target
+        windowMenu.addItem(withTitle: tr("放松指南", "Relax guide"), action: #selector(AppDelegate.showRelax(_:)), keyEquivalent: "").target = target
         windowMenu.addItem(.separator())
         windowMenu.addItem(withTitle: tr("最小化", "Minimize"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowMenu.addItem(withTitle: tr("关闭", "Close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")

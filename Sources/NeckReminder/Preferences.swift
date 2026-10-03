@@ -54,6 +54,24 @@ final class Preferences: ObservableObject {
     @Published var pausedUntil: Date? { didSet { set(pausedUntil, "pausedUntil") } }
     @Published var ignoredDay: String? { didSet { set(ignoredDay, "ignoredDay") } }
 
+    // Learning & feedback
+    /// Ask "were you using the computer?" when coming back from an ambiguous silence.
+    @Published var askOnReturn: Bool { didSet { set(askOnReturn, "askOnReturn") } }
+    @Published var maxQuestionsPerDay: Int { didSet { set(maxQuestionsPerDay, "maxQuestionsPerDay") } }
+    /// Show the faint "still there?" hint when unsure.
+    @Published var probeEnabled: Bool { didSet { set(probeEnabled, "probeEnabled") } }
+    /// Apps for which no questions are asked.
+    @Published var noAskApps: [String] { didSet { set(noAskApps, "noAskApps") } }
+    /// "I'm reading / in a meeting": don't treat stillness as away until this time.
+    @Published var presenceHoldUntil: Date? { didSet { set(presenceHoldUntil, "presenceHoldUntil") } }
+
+    // Bluetooth headset
+    @Published var bluetoothEnabled: Bool { didSet { set(bluetoothEnabled, "bluetoothEnabled") } }
+    @Published var bluetoothAddress: String? { didSet { set(bluetoothAddress, "bluetoothAddress") } }
+
+    // Text size (1.0 = system default)
+    @Published var textScale: Double { didSet { set(textScale, "textScale") } }
+
     // Bookkeeping
     @Published var hasLaunchedBefore: Bool { didSet { set(hasLaunchedBefore, "hasLaunchedBefore") } }
 
@@ -93,6 +111,14 @@ final class Preferences: ObservableObject {
         }
         pausedUntil = defaults.object(forKey: "pausedUntil") as? Date
         ignoredDay = defaults.string(forKey: "ignoredDay")
+        askOnReturn = v("askOnReturn", true)
+        maxQuestionsPerDay = v("maxQuestionsPerDay", 5)
+        probeEnabled = v("probeEnabled", true)
+        noAskApps = v("noAskApps", [String]())
+        presenceHoldUntil = defaults.object(forKey: "presenceHoldUntil") as? Date
+        bluetoothEnabled = v("bluetoothEnabled", false)
+        bluetoothAddress = defaults.string(forKey: "bluetoothAddress")
+        textScale = v("textScale", 1.0)
         hasLaunchedBefore = v("hasLaunchedBefore", false)
 
         L10n.language = language

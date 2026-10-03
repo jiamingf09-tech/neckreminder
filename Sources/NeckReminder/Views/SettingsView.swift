@@ -7,6 +7,8 @@ struct SettingsView: View {
     @EnvironmentObject var prefs: Preferences
     @EnvironmentObject var controller: ReminderController
     @EnvironmentObject var notifications: NotificationManager
+    @EnvironmentObject var learning: LearningStore
+    @EnvironmentObject var bluetooth: BluetoothProximity
 
     @State private var loginEnabled = LoginItem.isEnabled
     @State private var loginNeedsApproval = LoginItem.needsApproval
@@ -17,6 +19,8 @@ struct SettingsView: View {
             remindersSection
             styleSection
             detectionSection
+            learningSection
+            bluetoothSection
             DiagnosticsSection()
             appearanceSection
             systemSection
@@ -75,7 +79,7 @@ struct SettingsView: View {
                     .help(tr("重新检查", "Check again"))
                 }
                 if let error = notifications.lastError {
-                    Text(error).font(.caption).foregroundColor(.red)
+                    Text(error).scaledFont(10.5).foregroundColor(.red)
                 }
                 Toggle(tr("提示音", "Sound"), isOn: $prefs.notificationSound)
             }
@@ -142,6 +146,75 @@ struct SettingsView: View {
         }
     }
 
+    private var learningSection: some View {
+        Section {
+            Toggle(tr("回到电脑时，偶尔问一句刚才是否在使用", "When I come back, occasionally ask whether I was using the computer"),
+                   isOn: $prefs.askOnReturn)
+            if prefs.askOnReturn {
+                Picker(tr("每天最多询问", "At most per day"), selection: $prefs.maxQuestionsPerDay) {
+                    ForEach([2, 3, 5, 8, 12], id: \.self) { n in Text(tr("\(n) 次", "\(n) times")).tag(n) }
+                }
+            }
+            Toggle(tr("拿不准时，在角落淡出「还在看吗？」（动一下鼠标即可）",
+                      "When unsure, fade in \u{201C}Still there?\u{201D} in the corner (just move the mouse)"),
+                   isOn: $prefs.probeEnabled)
+            HStack {
+                let a = PresenceModel.accuracy(learning.episodes)
+                Text(a.total == 0
+                     ? tr("还没有回答记录", "No answers yet")
+                     : tr("已回答 \(a.total) 次 · 回答前判断正确率 \(Int(Double(a.correct) / Double(a.total) * 100))%",
+                          "\(a.total) answers · right \(Int(Double(a.correct) / Double(a.total) * 100))% before answering"))
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+        } header: {
+            Text(tr("学习与反馈", "Learning & feedback"))
+        } footer: {
+            Text(tr("问题只在判断拿不准时出现，出现在右下角，不抢键盘焦点，20 秒后自动消失。你的回答会立即修正刚才的计时，并在本机训练一个小模型：每个应用、是否在放视频 / 画中画 / 音乐、是否在通话都会分别学习。演示或全屏时不会弹出，可以之后在「回顾」里确认。",
+                    "Questions appear only when detection is unsure — bottom-right, never stealing keyboard focus, gone after 20 s. Answers fix the timer immediately and train a small on-device model per app and per situation (video, picture in picture, music, calls). Nothing pops up while you present or are full screen; confirm those later in Review."))
+        }
+    }
+
+    private var bluetoothSection: some View {
+        Section {
+            Toggle(tr("用蓝牙耳机判断离开", "Use a Bluetooth headset to detect leaving"), isOn: $prefs.bluetoothEnabled)
+                .onChange(of: prefs.bluetoothEnabled) { on in if on { bluetooth.refreshPairedDevices() } }
+            if prefs.bluetoothEnabled {
+                HStack {
+                    Picker(tr("设备", "Device"), selection: $prefs.bluetoothAddress) {
+                        Text(tr("请选择…", "Choose…")).tag(String?.none)
+                        ForEach(bluetooth.pairedDevices) { d in
+                            Text(d.isAudio ? "🎧 \(d.name)" : d.name).tag(String?.some(d.id))
+                        }
+                    }
+                    Button {
+                        bluetooth.refreshPairedDevices()
+                    } label: { Image(systemName: "arrow.clockwise") }
+                    .buttonStyle(.borderless)
+                    .help(tr("刷新设备列表", "Refresh devices"))
+                }
+                if prefs.bluetoothAddress != nil {
+                    HStack {
+                        Text(bluetooth.connected
+                             ? tr("已连接", "Connected") + (bluetooth.rssi.map { " · \(tr("信号", "signal")) \($0) dBm" } ?? "")
+                             : tr("未连接", "Not connected"))
+                        Spacer()
+                    }
+                    .foregroundColor(.secondary)
+                    if let event = bluetooth.lastEvent {
+                        Text(event).scaledFont(11).foregroundColor(.secondary)
+                    }
+                }
+            }
+        } header: {
+            Text(tr("蓝牙耳机（AirPods 等）", "Bluetooth headset (AirPods etc.)"))
+        } footer: {
+            Text(tr("戴着耳机走远、信号逐渐减弱后断开，会被直接判定为离开（从信号开始减弱时算起）。断开前信号还很强的情况——放回耳机盒、被 iPhone 接走、手动断开——不作为离开依据。断开后只要电脑上还有操作，也不会算离开。iPhone 和 Apple Watch 的蓝牙地址会随机变化，无法使用。首次开启时 macOS 会请求蓝牙权限。",
+                    "If the headset fades out and then disconnects as you walk away, you're counted as away from when the signal started fading. Disconnects with a strong signal (back in the case, taken by the iPhone, disconnected by hand) are ignored, and so is any disconnect while the computer is still being used. iPhone and Apple Watch use rotating Bluetooth addresses and can't be used. macOS asks for Bluetooth permission the first time."))
+        }
+        .onAppear { if prefs.bluetoothEnabled { bluetooth.refreshPairedDevices() } }
+    }
+
     private var appearanceSection: some View {
         Section {
             Toggle(tr("在菜单栏显示", "Show in menu bar"), isOn: $prefs.showInMenuBar)
@@ -149,6 +222,11 @@ struct SettingsView: View {
                 Toggle(tr("菜单栏显示倒计时", "Show countdown in menu bar"), isOn: $prefs.menuBarCountdown)
             }
             Toggle(tr("在 Dock 中显示", "Show in Dock"), isOn: $prefs.showInDock)
+            Picker(tr("文字大小", "Text size"), selection: $prefs.textScale) {
+                ForEach(TextScale.options, id: \.self) { v in
+                    Text(v == 1.0 ? tr("标准 (100%)", "Default (100%)") : TextScale.label(v)).tag(v)
+                }
+            }
             Toggle(tr("启动时打开主窗口（开机自启时不打开）", "Open this window on launch (not at login)"), isOn: $prefs.showWindowOnLaunch)
             Picker(tr("语言", "Language"), selection: $prefs.language) {
                 Text(tr("跟随系统", "System")).tag(AppLanguage.system)
@@ -158,7 +236,7 @@ struct SettingsView: View {
             if !prefs.showInMenuBar && !prefs.showInDock {
                 Text(tr("菜单栏和 Dock 图标都已隐藏。需要时再次打开 NeckReminder.app 即可回到这个窗口（不会重复启动）。",
                         "Both the menu bar and Dock icons are hidden. Open NeckReminder.app again to get back here — it won't start a second copy."))
-                    .font(.callout)
+                    .scaledFont(12)
                     .foregroundColor(.orange)
             }
         } header: {
@@ -188,13 +266,13 @@ struct SettingsView: View {
                 }
             }
             if let loginError {
-                Text(loginError).font(.caption).foregroundColor(.red)
+                Text(loginError).scaledFont(10.5).foregroundColor(.red)
             }
         } header: {
             Text(tr("系统", "System"))
         } footer: {
-            Text(tr("NeckReminder 只需要“通知”这一项权限。不需要辅助功能、输入监控、屏幕录制、摄像头或麦克风权限，也不联网。",
-                    "NeckReminder only asks for notification permission. No Accessibility, Input Monitoring, Screen Recording, camera or microphone access, and no network."))
+            Text(tr("NeckReminder 只需要“通知”权限（开启蓝牙耳机判断时另需“蓝牙”权限）。不需要辅助功能、输入监控、屏幕录制、摄像头或麦克风权限。只在你打开示范视频时访问 YouTube，其余不联网。",
+                    "NeckReminder only asks for notification permission (plus Bluetooth if you turn on the headset option). No Accessibility, Input Monitoring, Screen Recording, camera or microphone access. The network is used only when you open a demo video."))
         }
     }
 
@@ -233,6 +311,18 @@ struct DiagnosticsSection: View {
                 row(tr("屏幕保护程序", "Screen saver"), yesNo(snap.screenSaver))
                 row(tr("保持屏幕常亮的应用（视频 / 会议）", "Apps keeping the display on (video / calls)"),
                     snap.mediaApps.isEmpty ? tr("无", "None") : snap.mediaApps.joined(separator: ", "))
+                row(tr("前台应用", "Front app"), (snap.frontmostName ?? "—") + (snap.frontmostFullscreen ? tr("（全屏）", " (full screen)") : ""))
+                row(tr("画中画窗口", "Picture in picture"), snap.pipApps.isEmpty ? tr("无", "None") : snap.pipApps.joined(separator: ", "))
+                row(tr("正在出声的应用", "Apps playing sound"),
+                    snap.devices.outputApps.isEmpty ? (snap.devices.outputActive ? tr("有声音（无法区分应用）", "Yes (app unknown)") : tr("无", "None"))
+                                                    : snap.devices.outputApps.sorted().joined(separator: ", "))
+                row(tr("麦克风 / 摄像头使用中", "Microphone / camera in use"),
+                    "\(yesNo(snap.devices.micInUse)) / \(yesNo(snap.devices.cameraInUse))")
+                row(tr("通话判断", "Call"), callLabel(snap.call))
+                row(tr("当前离开阈值（学习后）", "Away threshold (learned)"), formatMinutes(controller.currentGrace))
+                if let p = controller.presenceProbability {
+                    row(tr("仍在使用的可能性", "Probability still here"), "\(Int(p * 100))%")
+                }
                 row(tr("连续使用（含暂记）", "Continuous use (incl. tentative)"), formatMinutes(controller.continuousUse))
             } else {
                 Text(tr("等待第一次采样…", "Waiting for the first sample…")).foregroundColor(.secondary)
@@ -257,4 +347,13 @@ struct DiagnosticsSection: View {
     }
 
     private func yesNo(_ b: Bool) -> String { b ? tr("是", "Yes") : tr("否", "No") }
+
+    private func callLabel(_ c: CallKind) -> String {
+        switch c {
+        case .none: return tr("无", "None")
+        case .voice: return tr("语音通话（不需要看屏幕）", "Voice call (no screen needed)")
+        case .meeting: return tr("会议（关闭摄像头）", "Meeting (camera off)")
+        case .video: return tr("视频通话", "Video call")
+        }
+    }
 }

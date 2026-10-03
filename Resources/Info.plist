@@ -46,6 +46,9 @@
 	<false/>
 	<key>NSSupportsSuddenTermination</key>
 	<false/>
+	<!-- Only used if you turn on "Bluetooth headset" in Settings. -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>NeckReminder can treat your AirPods walking out of range as you leaving the computer. Only signal strength and connection state are read.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 NeckReminder</string>
 </dict>

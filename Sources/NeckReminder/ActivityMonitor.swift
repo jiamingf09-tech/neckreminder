@@ -18,12 +18,44 @@ import NeckReminderCore
 final class ActivityMonitor {
     struct Snapshot {
         var sample: ActivitySample
+        var keyIdle: TimeInterval
         var screenLocked: Bool
         var displayAsleep: Bool
         var screenSaver: Bool
         var sessionInactive: Bool
+        /// GUI apps keeping the display awake (video, slideshow, call).
         var mediaApps: [String]
+        var frontmostID: String?
+        var frontmostName: String?
+        var frontmostPID: pid_t?
+        var frontmostFullscreen: Bool
+        var pipApps: [String]
+        var devices: MediaDevices.Status
+        var call: CallKind
+        var recentTyping: Double
+        var recentInput: Double
+
+        /// The context used by the presence model.
+        var context: PresenceContext {
+            let video = !mediaApps.isEmpty
+            let pip = !pipApps.isEmpty
+            return PresenceContext(appID: frontmostID, appName: frontmostName,
+                                   videoPlaying: video, pictureInPicture: pip,
+                                   audioOnly: devices.outputActive && !video && !pip,
+                                   call: call, frontmostFullscreen: frontmostFullscreen,
+                                   recentTyping: recentTyping, recentInput: recentInput)
+        }
+
+        /// A presentation or full-screen video is showing: don't put questions on screen.
+        var isPresenting: Bool { frontmostFullscreen }
     }
+
+    /// Input history for the last ~5 minutes (one entry per sample): any input / key presses.
+    private var recentSamples: [(input: Bool, key: Bool)] = []
+    private var lastSampleAt: Date?
+    private var cachedContextAt: Date = .distantPast
+    private var cachedWindows = WindowInspector.Result()
+    private var cachedDevices = MediaDevices.Status()
 
     private var screenSaverRunning = false
     private var displaysAsleep = false
@@ -32,7 +64,6 @@ final class ActivityMonitor {
     private var sleptSinceLastSample = false
 
     private var cachedMediaApps: [String] = []
-    private var mediaCheckedAt: Date = .distantPast
 
     init() {
         let ws = NSWorkspace.shared.notificationCenter
@@ -57,12 +88,24 @@ final class ActivityMonitor {
     @objc private func screenSaverStarted() { screenSaverRunning = true }
     @objc private func screenSaverStopped() { screenSaverRunning = false }
 
-    func snapshot(grace: TimeInterval) -> Snapshot {
+    func snapshot() -> Snapshot {
         let now = Date()
+        let dt = lastSampleAt.map { max(1, now.timeIntervalSince($0)) } ?? 5
+        lastSampleAt = now
+
         let idle = Self.secondsSince(Self.anyInput)
-        let strongIdle = [CGEventType.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel]
+        let keyIdle = Self.secondsSince(.keyDown)
+        let strongIdle = [keyIdle] + [CGEventType.leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel]
             .map(Self.secondsSince)
-            .min() ?? idle
+        let strong = strongIdle.min() ?? idle
+
+        recentSamples.append((idle <= dt + 0.5, keyIdle <= dt + 0.5))
+        if recentSamples.count > 60 { recentSamples.removeFirst(recentSamples.count - 60) }
+        let n = Double(max(1, recentSamples.count))
+        // Measured over the samples *before* the current silence would be ideal; this is
+        // close enough because the silence itself is excluded by the model's time term.
+        let recentInput = Double(recentSamples.filter { $0.input }.count) / n
+        let recentTyping = Double(recentSamples.filter { $0.key }.count) / n
 
         let session = CGSessionCopyCurrentDictionary() as? [String: Any]
         let locked = (session?["CGSSessionScreenIsLocked"] as? Bool) ?? false
@@ -70,41 +113,69 @@ final class ActivityMonitor {
         let displayAsleep = displaysAsleep || CGDisplayIsAsleep(CGMainDisplayID()) != 0
         let inactive = sessionInactive || !onConsole
 
-        // Media assertions only matter once the user has been quiet for a while; skip the
-        // IOKit call otherwise and cache it briefly.
-        if idle > 25 {
-            if now.timeIntervalSince(mediaCheckedAt) > 15 {
-                cachedMediaApps = Self.appsKeepingDisplayAwake()
-                mediaCheckedAt = now
-            }
-        } else {
-            cachedMediaApps = []
-            mediaCheckedAt = .distantPast
+        let front = NSWorkspace.shared.frontmostApplication
+
+        // The heavier context checks only matter once the user is quiet; while they are
+        // typing, refresh them now and then.
+        let contextAge = now.timeIntervalSince(cachedContextAt)
+        if (idle > 20 && contextAge > 4) || contextAge > 30 {
+            cachedMediaApps = Self.appsKeepingDisplayAwake()
+            cachedWindows = WindowInspector.inspect(frontmostPID: front?.processIdentifier)
+            cachedDevices = MediaDevices.status()
+            cachedContextAt = now
         }
+
+        // Picture in picture: the system PiP window, or a floating window of an app that is
+        // playing sound or keeping the display awake.
+        var pip: [String] = []
+        for candidate in cachedWindows.floatingVideoCandidates {
+            let app = NSRunningApplication(processIdentifier: candidate.pid)
+            let bundleID = app?.bundleIdentifier ?? ""
+            let name = app?.localizedName ?? candidate.owner
+            let playing = cachedDevices.outputApps.contains(bundleID) || cachedMediaApps.contains(name)
+                || (cachedDevices.outputApps.isEmpty && cachedDevices.outputActive)
+            if WindowInspector.isSystemPictureInPicture(candidate.owner) || playing {
+                pip.append(name)
+            }
+        }
+        pip = Array(Set(pip)).sorted()
 
         let sample = ActivitySample(
             date: now,
             idleSeconds: idle,
-            strongIdleSeconds: strongIdle,
+            strongIdleSeconds: strong,
             hardAway: locked || displayAsleep || screenSaverRunning || inactive || systemSleeping,
             slept: sleptSinceLastSample,
-            mediaPlaying: !cachedMediaApps.isEmpty)
+            mediaPlaying: !cachedMediaApps.isEmpty || !pip.isEmpty || cachedDevices.cameraInUse)
         sleptSinceLastSample = false
 
         return Snapshot(sample: sample,
+                        keyIdle: keyIdle,
                         screenLocked: locked,
                         displayAsleep: displayAsleep,
                         screenSaver: screenSaverRunning,
                         sessionInactive: inactive,
-                        mediaApps: cachedMediaApps)
+                        mediaApps: cachedMediaApps,
+                        frontmostID: front?.bundleIdentifier,
+                        frontmostName: front?.localizedName,
+                        frontmostPID: front?.processIdentifier,
+                        frontmostFullscreen: cachedWindows.frontmostFullscreen,
+                        pipApps: pip,
+                        devices: cachedDevices,
+                        call: MeetingApps.classify(status: cachedDevices, displayAwakeApps: cachedMediaApps),
+                        recentTyping: recentTyping,
+                        recentInput: recentInput)
     }
+
+    /// Seconds since any hardware input (cheap; used by the relax-session guard every second).
+    static func idleSeconds() -> TimeInterval { secondsSince(anyInput) }
 
     // MARK: - Input idle time
 
     /// `kCGAnyInputEventType` (~0) is not exposed as a case of `CGEventType`.
     private static let anyInput = CGEventType(rawValue: ~UInt32(0))!
 
-    private static func secondsSince(_ type: CGEventType) -> TimeInterval {
+    static func secondsSince(_ type: CGEventType) -> TimeInterval {
         let s = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: type)
         return s.isFinite && s >= 0 ? s : .greatestFiniteMagnitude
     }

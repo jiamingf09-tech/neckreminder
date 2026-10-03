@@ -90,6 +90,8 @@ public struct GapEpisode: Codable, Identifiable, Equatable {
     public var predicted: Double
     /// The question could not be shown at the time (presentation, relax session…).
     public var awaitingReview: Bool
+    /// When the "were you using the computer?" question was shown.
+    public var askedAt: Date?
 
     public init(id: UUID = UUID(), gap: GapInfo, context: PresenceContext, label: PresenceLabel? = nil,
                 source: LabelSource? = nil, predicted: Double, awaitingReview: Bool = false) {

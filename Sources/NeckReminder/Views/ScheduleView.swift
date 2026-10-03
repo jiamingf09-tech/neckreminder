@@ -43,7 +43,7 @@ struct ScheduleView: View {
                         DatePicker("", selection: timeBinding(range.id, start: false), displayedComponents: .hourAndMinute)
                             .labelsHidden()
                         if range.endMinute < range.startMinute {
-                            Text(tr("（跨夜）", "(overnight)")).font(.caption).foregroundColor(.secondary)
+                            Text(tr("（跨夜）", "(overnight)")).scaledFont(10.5).foregroundColor(.secondary)
                         }
                         Spacer()
                         Button(role: .destructive) {

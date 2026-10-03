@@ -12,12 +12,15 @@ final class RelaxSession: NSObject, ObservableObject {
     @Published private(set) var finished = false
 
     var onStarted: (() -> Void)?
-    var onEnded: ((_ completed: Bool, _ elapsed: TimeInterval) -> Void)?
+    /// `active` = time actually spent on the routine (pauses excluded), `total` = routine length.
+    var onEnded: ((_ completed: Bool, _ active: TimeInterval, _ total: TimeInterval) -> Void)?
+    var onPauseChanged: ((Bool) -> Void)?
 
     private let prefs: Preferences
     private var timer: Timer?
     private var stepEnd: Date?
-    private var startedAt: Date?
+    private var runningSince: Date?
+    private var activeTime: TimeInterval = 0
     private let speech = AVSpeechSynthesizer()
 
     init(prefs: Preferences) {
@@ -53,7 +56,8 @@ final class RelaxSession: NSObject, ObservableObject {
         self.routine = routine
         finished = false
         isPaused = false
-        startedAt = Date()
+        runningSince = Date()
+        activeTime = 0
         onStarted?()
         go(to: 0)
         let t = Timer(timeInterval: 0.25, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
@@ -62,14 +66,24 @@ final class RelaxSession: NSObject, ObservableObject {
     }
 
     func togglePause() {
-        guard isRunning else { return }
-        if isPaused {
-            stepEnd = Date().addingTimeInterval(stepRemaining)
-            isPaused = false
-        } else {
-            stepRemaining = max(0, stepEnd?.timeIntervalSinceNow ?? 0)
-            isPaused = true
-        }
+        if isPaused { resume() } else { pause() }
+    }
+
+    func pause() {
+        guard isRunning, !isPaused else { return }
+        stepRemaining = max(0, stepEnd?.timeIntervalSinceNow ?? 0)
+        isPaused = true
+        if let pausedAt = runningSince { activeTime += Date().timeIntervalSince(pausedAt) }
+        runningSince = nil
+        onPauseChanged?(true)
+    }
+
+    func resume() {
+        guard isRunning, isPaused else { return }
+        stepEnd = Date().addingTimeInterval(stepRemaining)
+        isPaused = false
+        runningSince = Date()
+        onPauseChanged?(false)
     }
 
     func next() {
@@ -100,7 +114,11 @@ final class RelaxSession: NSObject, ObservableObject {
         let step = routine.steps[newIndex]
         stepRemaining = TimeInterval(step.seconds)
         stepEnd = Date().addingTimeInterval(stepRemaining)
-        if isPaused { isPaused = false }
+        if isPaused {
+            isPaused = false
+            runningSince = Date()
+            onPauseChanged?(false)
+        }
         announce(step)
     }
 
@@ -120,14 +138,16 @@ final class RelaxSession: NSObject, ObservableObject {
     private func end(completed: Bool) {
         timer?.invalidate()
         timer = nil
-        let elapsed = startedAt.map { Date().timeIntervalSince($0) } ?? 0
-        startedAt = nil
+        let total = TimeInterval(routine?.totalSeconds ?? 0)
+        let elapsed = activeTime + (runningSince.map { Date().timeIntervalSince($0) } ?? 0)
+        runningSince = nil
+        activeTime = 0
         if !completed {
             routine = nil
             finished = false
             speech.stopSpeaking(at: .immediate)
         }
-        onEnded?(completed, elapsed)
+        onEnded?(completed, elapsed, total)
     }
 
     private func announce(_ step: RoutineStep) {

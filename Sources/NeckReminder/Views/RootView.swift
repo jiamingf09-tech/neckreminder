@@ -20,6 +20,8 @@ struct RootView: View {
         }
         // All strings are computed with `tr`; rebuild the tree when the language changes.
         .id(prefs.language)
+        .environment(\.textScale, prefs.textScale)
+        .font(.system(size: 13 * CGFloat(prefs.textScale)))
         .frame(minWidth: 760, minHeight: 540)
     }
 
@@ -27,6 +29,7 @@ struct RootView: View {
     private var detail: some View {
         switch navigation.section ?? .overview {
         case .overview: OverviewView(navigation: navigation)
+        case .review: ReviewView()
         case .relax: RelaxView()
         case .library: LibraryView()
         case .schedule: ScheduleView()

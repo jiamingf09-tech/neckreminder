@@ -33,13 +33,34 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+struct OverlayButton: Identifiable, Equatable {
+    let id: String
+    let title: String
+    var symbol: String? = nil
+}
+
+/// What a full-screen overlay says and offers.
+struct OverlayContent {
+    var symbol = "figure.mind.and.body"
+    var title: String
+    var subtitle: String
+    var primary: OverlayButton
+    var secondary: [OverlayButton]
+    /// Small line under the buttons; receives the seconds left before auto-hide (0 = none).
+    var footnote: (Int) -> String?
+}
+
 @MainActor
 final class OverlayModel: ObservableObject {
+    @Published var symbol = "figure.mind.and.body"
     @Published var title = ""
     @Published var subtitle = ""
     @Published var opacity = 0.45
     @Published var celebrating = false
     @Published var secondsLeft = 0
+    @Published var primary = OverlayButton(id: "", title: "")
+    @Published var secondary: [OverlayButton] = []
+    var footnote: (Int) -> String? = { _ in nil }
 }
 
 /// The optional full-screen reminder.
@@ -55,7 +76,8 @@ final class OverlayController: NSObject {
     private var actionsPanel: OverlayPanel?
     private let model = OverlayModel()
     private var countdown: Timer?
-    private var onAction: ((ReminderAction) -> Void)?
+    private var onAction: ((String) -> Void)?
+    private var onTimeout: (() -> Void)?
 
     var isVisible: Bool { !backdrops.isEmpty }
 
@@ -64,14 +86,19 @@ final class OverlayController: NSObject {
         return NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens.first
     }
 
-    func show(mode: OverlayMode, title: String, subtitle: String, opacity: Double,
-              autoHideSeconds: Int, onAction: @escaping (ReminderAction) -> Void) {
+    func show(mode: OverlayMode, content: OverlayContent, opacity: Double,
+              autoHideSeconds: Int, onAction: @escaping (String) -> Void, onTimeout: (() -> Void)? = nil) {
         dismiss(animated: false)
         guard mode != .off, let active = Self.activeScreen() else { return }
         self.onAction = onAction
+        self.onTimeout = onTimeout
 
-        model.title = title
-        model.subtitle = subtitle
+        model.symbol = content.symbol
+        model.title = content.title
+        model.subtitle = content.subtitle
+        model.primary = content.primary
+        model.secondary = content.secondary
+        model.footnote = content.footnote
         model.opacity = opacity
         model.celebrating = false
         model.secondsLeft = autoHideSeconds
@@ -82,8 +109,8 @@ final class OverlayController: NSObject {
             backdrops.append(panel)
         }
 
-        let actions = OverlayActionsView(model: model) { [weak self] action in
-            self?.onAction?(action)
+        let actions = OverlayActionsView(model: model) { [weak self] id in
+            self?.onAction?(id)
         }
         let host = FirstMouseHostingView(rootView: actions.environment(\.colorScheme, .dark))
         let size = host.fittingSize
@@ -114,7 +141,9 @@ final class OverlayController: NSObject {
     @objc private func countdownTick() {
         model.secondsLeft -= 1
         if model.secondsLeft <= 0 {
+            let timeout = onTimeout
             dismiss(animated: true)
+            timeout?()
         }
     }
 
@@ -122,6 +151,7 @@ final class OverlayController: NSObject {
         countdown?.invalidate()
         countdown = nil
         onAction = nil
+        onTimeout = nil
         let windows = backdrops + [actionsPanel].compactMap { $0 }
         backdrops = []
         actionsPanel = nil
@@ -147,6 +177,7 @@ final class OverlayController: NSObject {
         countdown?.invalidate()
         countdown = nil
         onAction = nil
+        onTimeout = nil
         actionsPanel?.orderOut(nil)
         actionsPanel = nil
 
@@ -201,7 +232,7 @@ struct OverlayBackdropView: View {
             RadialGradient(colors: [Color(red: 0.2, green: 0.75, blue: 0.7).opacity(0.22), .clear],
                            center: .center, startRadius: 20, endRadius: 760)
             VStack(spacing: 20) {
-                Image(systemName: model.celebrating ? "party.popper.fill" : "figure.mind.and.body")
+                Image(systemName: model.celebrating ? "party.popper.fill" : model.symbol)
                     .font(.system(size: 88, weight: .light))
                 Text(model.title)
                     .font(.system(size: 68, weight: .bold, design: .rounded))
@@ -222,12 +253,14 @@ struct OverlayBackdropView: View {
 
 struct OverlayActionsView: View {
     @ObservedObject var model: OverlayModel
-    let onAction: (ReminderAction) -> Void
+    let onAction: (String) -> Void
 
     var body: some View {
+        // No panel behind the buttons: each control carries its own small blur and the text a
+        // soft shadow, so it stays readable on any wallpaper without covering a block of screen.
         VStack(spacing: 16) {
-            Button { onAction(.relax) } label: {
-                Label(tr("放松颈椎", "Relax my neck"), systemImage: "figure.mind.and.body")
+            Button { onAction(model.primary.id) } label: {
+                Label(model.primary.title, systemImage: model.primary.symbol ?? "figure.mind.and.body")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .frame(minWidth: 300)
                     .padding(.vertical, 14)
@@ -236,41 +269,26 @@ struct OverlayActionsView: View {
             .buttonStyle(OverlayPrimaryButtonStyle())
 
             HStack(spacing: 10) {
-                secondary(tr("5 分钟后提醒", "In 5 min"), .snooze5)
-                secondary(tr("10 分钟后提醒", "In 10 min"), .snooze10)
-                secondary(tr("本次忽略", "Skip this time"), .skip)
-                secondary(tr("今日忽略", "Skip today"), .skipToday)
+                ForEach(model.secondary) { button in
+                    Button { onAction(button.id) } label: {
+                        Text(button.title)
+                            .font(.system(size: 15, weight: .medium))
+                            .padding(.vertical, 9)
+                            .padding(.horizontal, 16)
+                    }
+                    .buttonStyle(OverlaySecondaryButtonStyle())
+                }
             }
 
-            if model.secondsLeft > 0 {
-                Text(tr("提醒不会拦截鼠标和键盘，\(model.secondsLeft) 秒后自动隐藏",
-                        "Mouse and keyboard keep working · hides in \(model.secondsLeft)s"))
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.65))
+            if let note = model.footnote(model.secondsLeft) {
+                Text(note)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.85))
+                    .shadow(color: .black.opacity(0.8), radius: 3)
             }
         }
-        .padding(24)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.black.opacity(0.35))
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.15))
-        )
-        .padding(2)
+        .padding(16)
         .fixedSize()
-    }
-
-    private func secondary(_ title: String, _ action: ReminderAction) -> some View {
-        Button { onAction(action) } label: {
-            Text(title)
-                .font(.system(size: 15, weight: .medium))
-                .padding(.vertical, 9)
-                .padding(.horizontal, 16)
-        }
-        .buttonStyle(OverlaySecondaryButtonStyle())
     }
 }
 
@@ -293,8 +311,13 @@ struct OverlaySecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundColor(.white)
-            .background(Capsule().fill(Color.white.opacity(configuration.isPressed ? 0.28 : 0.16)))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.25)))
+            .shadow(color: .black.opacity(0.7), radius: 2)
+            .background(
+                VisualEffectBlur(material: .fullScreenUI)
+                    .overlay(Color.white.opacity(configuration.isPressed ? 0.18 : 0))
+                    .clipShape(Capsule())
+            )
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.35)))
             .contentShape(Capsule())
     }
 }

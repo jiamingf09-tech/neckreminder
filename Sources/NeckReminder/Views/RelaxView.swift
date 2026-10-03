@@ -39,7 +39,7 @@ struct RoutinePickerView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .firstTextBaseline) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(selected.title.text).font(.title2.bold())
+                                Text(selected.title.text).scaledFont(18, weight: .bold)
                                 Text(selected.subtitle.text).foregroundColor(.secondary)
                             }
                             Spacer()
@@ -48,7 +48,7 @@ struct RoutinePickerView: View {
                             } label: {
                                 Label(tr("开始 \(selected.minutes) 分钟放松", "Start \(selected.minutes)-minute session"),
                                       systemImage: "play.fill")
-                                    .font(.system(size: 15, weight: .semibold))
+                                    .scaledFont(15, weight: .semibold)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
                             }
@@ -65,7 +65,7 @@ struct RoutinePickerView: View {
                                 Text(step.title)
                                 if step.exercise.needsStanding {
                                     Text(tr("站立", "standing"))
-                                        .font(.caption2)
+                                        .scaledFont(10)
                                         .padding(.horizontal, 6).padding(.vertical, 2)
                                         .background(Capsule().fill(Color.orange.opacity(0.15)))
                                 }
@@ -74,7 +74,7 @@ struct RoutinePickerView: View {
                                     .monospacedDigit()
                                     .foregroundColor(.secondary)
                             }
-                            .font(.callout)
+                            .scaledFont(12)
                         }
                     }
                 }
@@ -92,9 +92,9 @@ struct RoutinePickerView: View {
         } label: {
             VStack(spacing: 2) {
                 Text("\(routine.minutes)")
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
-                Text(tr("分钟", "min")).font(.caption)
-                Text(routine.title.text).font(.caption2).lineLimit(1)
+                    .scaledFont(26, weight: .bold, design: .rounded)
+                Text(tr("分钟", "min")).scaledFont(10.5)
+                Text(routine.title.text).scaledFont(10).lineLimit(1)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
@@ -110,13 +110,15 @@ struct RoutinePickerView: View {
 
 /// Ergonomics, video references and the safety note.
 struct GuideExtrasView: View {
+    @State private var video: VideoLink?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Card {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(tr("工位小调整，效果常常比拉伸更持久", "Small desk changes often help more than any stretch"),
                           systemImage: "desktopcomputer")
-                        .font(.headline)
+                        .scaledFont(13, weight: .semibold)
                     ForEach(ExerciseLibrary.ergonomicTips, id: \.self) { tip in
                         HStack(alignment: .top, spacing: 8) {
                             Text("•")
@@ -128,26 +130,30 @@ struct GuideExtrasView: View {
             Card {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(tr("参考视频（YouTube）", "Video references (YouTube)"), systemImage: "play.rectangle")
-                        .font(.headline)
+                        .scaledFont(13, weight: .semibold)
                     Text(tr("本指南的动作参考了 YouTube 上常见的 “neck pain relief exercises” 系列，点击可搜索对应频道的示范视频。",
                             "These routines follow the popular “neck pain relief exercises” videos on YouTube. Click to search for demonstrations."))
-                        .font(.callout)
+                        .scaledFont(12)
                         .foregroundColor(.secondary)
                     ForEach(ExerciseLibrary.videoReferences, id: \.query) { ref in
-                        Link(destination: youtubeSearchURL(ref.query)) {
-                            Label(ref.title.text, systemImage: "arrow.up.right.square")
+                        Button {
+                            video = .youtube(ref.title.text, query: ref.query)
+                        } label: {
+                            Label(ref.title.text, systemImage: "play.rectangle")
                         }
+                        .buttonStyle(.link)
                     }
                 }
             }
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "cross.case").foregroundColor(.red)
                 Text(ExerciseLibrary.safetyNote.text)
-                    .font(.callout)
+                    .scaledFont(12)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .sheet(item: $video) { VideoSheet(video: $0) }
     }
 }
 
@@ -155,6 +161,8 @@ struct GuideExtrasView: View {
 
 struct RoutinePlayerView: View {
     @EnvironmentObject var session: RelaxSession
+    @EnvironmentObject var prefs: Preferences
+    @State private var video: VideoLink?
 
     var body: some View {
         if session.finished {
@@ -168,14 +176,16 @@ struct RoutinePlayerView: View {
                 }
                 controls
             }
+            .sheet(item: $video) { VideoSheet(video: $0) }
         }
     }
 
     private func header(_ routine: Routine) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("\(routine.title.text) · \(routine.minutes) \(tr("分钟", "min"))").font(.headline)
+                Text("\(routine.title.text) · \(routine.minutes) \(tr("分钟", "min"))").scaledFont(13, weight: .semibold)
                 Spacer()
+                textSizeButtons
                 Text(tr("剩余 \(formatClock(session.totalRemaining))", "\(formatClock(session.totalRemaining)) left"))
                     .monospacedDigit()
                     .foregroundColor(.secondary)
@@ -183,12 +193,34 @@ struct RoutinePlayerView: View {
             ProgressView(value: session.overallProgress)
                 .tint(Palette.accent)
             Text(tr("第 \(session.index + 1) / \(routine.steps.count) 个动作", "Step \(session.index + 1) of \(routine.steps.count)"))
-                .font(.caption)
+                .scaledFont(10.5)
                 .foregroundColor(.secondary)
         }
         .padding(.horizontal, 24)
         .padding(.top, 20)
         .padding(.bottom, 8)
+    }
+
+    /// Quick text size adjustment right where the guidance is read.
+    private var textSizeButtons: some View {
+        HStack(spacing: 2) {
+            Button { prefs.textScale = TextScale.step(prefs.textScale, up: false) } label: {
+                Text("A−").font(.system(size: 11, weight: .semibold))
+            }
+            .disabled(prefs.textScale <= TextScale.options.first! + 0.001)
+            .help(tr("缩小文字", "Smaller text"))
+            Text(TextScale.label(prefs.textScale))
+                .font(.system(size: 11).monospacedDigit())
+                .foregroundColor(.secondary)
+                .frame(width: 40)
+            Button { prefs.textScale = TextScale.step(prefs.textScale, up: true) } label: {
+                Text("A+").font(.system(size: 14, weight: .semibold))
+            }
+            .disabled(prefs.textScale >= TextScale.options.last! - 0.001)
+            .help(tr("放大文字", "Larger text"))
+        }
+        .buttonStyle(.borderless)
+        .padding(.trailing, 12)
     }
 
     private func stepView(_ step: RoutineStep) -> some View {
@@ -197,13 +229,13 @@ struct RoutinePlayerView: View {
                 ProgressRing(progress: 1 - session.stepRemaining / Double(max(1, step.seconds)), lineWidth: 12)
                 VStack(spacing: 4) {
                     Image(systemName: step.exercise.symbol)
-                        .font(.system(size: 30))
+                        .scaledFont(30)
                         .foregroundColor(Palette.accent)
                     Text(formatClock(session.stepRemaining))
-                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .scaledFont(40, weight: .bold, design: .rounded)
                         .monospacedDigit()
                     if session.isPaused {
-                        Text(tr("已暂停", "Paused")).font(.caption).foregroundColor(.orange)
+                        Text(tr("已暂停", "Paused")).scaledFont(10.5).foregroundColor(.orange)
                     }
                 }
             }
@@ -211,17 +243,18 @@ struct RoutinePlayerView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 Text(step.exercise.name.text)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .scaledFont(34, weight: .bold, design: .rounded)
                 if let side = step.side {
                     Text(side.label)
-                        .font(.headline)
+                        .scaledFont(16, weight: .semibold)
                         .padding(.horizontal, 10).padding(.vertical, 3)
                         .background(Capsule().fill(Palette.accent.opacity(0.18)))
                 }
                 Text(step.exercise.summary.text)
+                    .scaledFont(16)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(step.exercise.howTo.enumerated()), id: \.offset) { i, line in
                         HStack(alignment: .top, spacing: 8) {
                             Text("\(i + 1).").monospacedDigit().foregroundColor(Palette.accent)
@@ -229,19 +262,23 @@ struct RoutinePlayerView: View {
                         }
                     }
                 }
-                .font(.system(size: 15))
-                Label(step.exercise.dosage.text, systemImage: "repeat").font(.callout)
+                .scaledFont(19)
+                Label(step.exercise.dosage.text, systemImage: "repeat").scaledFont(16, weight: .medium)
                 if let caution = step.exercise.caution {
                     Label(caution.text, systemImage: "exclamationmark.triangle")
-                        .font(.callout)
+                        .scaledFont(15)
                         .foregroundColor(.orange)
                 }
-                Link(destination: step.exercise.youtubeURL) {
-                    Label(tr("在 YouTube 查看示范", "Watch a demo on YouTube"), systemImage: "play.rectangle")
+                Button {
+                    video = .youtube(step.exercise.name.text, query: step.exercise.youtubeQuery)
+                } label: {
+                    Label(tr("观看示范视频", "Watch a demo video"), systemImage: "play.rectangle")
+                        .scaledFont(14)
                 }
+                .buttonStyle(.link)
                 if let next = session.nextStep {
                     Text(tr("下一个：\(next.title)", "Up next: \(next.title)"))
-                        .font(.callout)
+                        .scaledFont(14)
                         .foregroundColor(.secondary)
                         .padding(.top, 4)
                 }
@@ -260,7 +297,6 @@ struct RoutinePlayerView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(Palette.accent)
-            .keyboardShortcut(.space, modifiers: [])
             Button { session.next() } label: { Label(tr("下一个", "Next"), systemImage: "forward.fill") }
             Spacer()
             Button(role: .destructive) { session.stop() } label: { Text(tr("结束", "End")) }
@@ -274,10 +310,10 @@ struct RoutinePlayerView: View {
     private var finishedView: some View {
         VStack(spacing: 16) {
             Image(systemName: "party.popper.fill")
-                .font(.system(size: 64))
+                .scaledFont(64)
                 .foregroundStyle(Palette.gradient)
             Text(tr("完成！你的颈椎会感谢你", "Done! Your neck says thanks"))
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .scaledFont(28, weight: .bold, design: .rounded)
             if let routine = session.routine {
                 Text(tr("完成了 \(routine.minutes) 分钟的「\(routine.title.text)」，计时已重新开始。",
                         "You finished the \(routine.minutes)-minute “\(routine.title.text)”. The timer has restarted."))

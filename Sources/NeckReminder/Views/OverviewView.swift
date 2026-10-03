@@ -7,6 +7,7 @@ struct OverviewView: View {
     @EnvironmentObject var prefs: Preferences
     @EnvironmentObject var stats: StatsStore
     @EnvironmentObject var notifications: NotificationManager
+    @EnvironmentObject var learning: LearningStore
 
     var body: some View {
         ScrollView {
@@ -15,6 +16,12 @@ struct OverviewView: View {
                            subtitle: tr("只根据键盘鼠标活跃度与锁屏状态判断，不使用摄像头和麦克风。",
                                         "Based only on input activity and screen state — never the camera or microphone."))
                 permissionWarning
+                if learning.awaitingReviewCount > 0 {
+                    WarningBox(text: tr("有 \(learning.awaitingReviewCount) 段没有操作的时间当时在演示或全屏，没来得及确认。",
+                                        "\(learning.awaitingReviewCount) silences happened while presenting / full screen and weren't confirmed.")) {
+                        Button(tr("去回顾", "Review")) { navigation.section = .review }
+                    }
+                }
                 statusCard
                 todayTiles
                 weekChart
@@ -33,9 +40,9 @@ struct OverviewView: View {
                     ProgressRing(progress: controller.continuousUse / Double(max(1, prefs.intervalMinutes) * 60))
                     VStack(spacing: 2) {
                         Text(formatMinutes(controller.continuousUse))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .scaledFont(24, weight: .bold, design: .rounded)
                         Text(tr("连续使用", "continuous use"))
-                            .font(.caption)
+                            .scaledFont(10.5)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -44,7 +51,7 @@ struct OverviewView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
                         Circle().fill(Palette.color(for: controller.state)).frame(width: 10, height: 10)
-                        Text(controller.stateTitle).font(.headline)
+                        Text(controller.stateTitle).scaledFont(13, weight: .semibold)
                     }
                     if let text = controller.suppressionText {
                         HStack {
@@ -60,10 +67,19 @@ struct OverviewView: View {
                              ? tr("放松中，计时已暂停", "Relaxing — timer paused")
                              : tr("\(formatMinutes(controller.remaining))后提醒你放松颈椎",
                                   "Next reminder in \(formatMinutes(controller.remaining))"))
-                            .font(.title3)
+                            .scaledFont(15)
+                    }
+                    if let hold = prefs.presenceHoldUntil {
+                        HStack {
+                            Label(tr("阅读 / 开会模式：到 \(Self.time.string(from: hold)) 前不会判定离开",
+                                     "Reading / meeting mode: not counted as away until \(Self.time.string(from: hold))"),
+                                  systemImage: "book")
+                            Button(tr("取消", "Cancel")) { controller.cancelPresenceHold() }
+                        }
+                        .scaledFont(12)
                     }
                     Text(stateExplanation)
-                        .font(.callout)
+                        .scaledFont(12)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -85,6 +101,12 @@ struct OverviewView: View {
             }
         }
     }
+
+    private static let time: DateFormatter = {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        return f
+    }()
 
     private var stateExplanation: String {
         let breakMinutes = prefs.breakResetMinutes
@@ -125,7 +147,7 @@ struct OverviewView: View {
 
     private var todayTiles: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(tr("今天", "Today")).font(.headline)
+            Text(tr("今天", "Today")).scaledFont(13, weight: .semibold)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 5), spacing: 12) {
                 StatTile(symbol: "desktopcomputer", title: tr("使用时长", "Screen time"), value: formatMinutes(stats.today.activeSeconds))
                 StatTile(symbol: "timer", title: tr("最长连续", "Longest stretch"), value: formatMinutes(stats.today.longestStretch))
@@ -141,18 +163,18 @@ struct OverviewView: View {
         let maxSeconds = max(3600, days.map(\.activeSeconds).max() ?? 0)
         return Card {
             VStack(alignment: .leading, spacing: 12) {
-                Text(tr("最近 7 天使用时长", "Screen time, last 7 days")).font(.headline)
+                Text(tr("最近 7 天使用时长", "Screen time, last 7 days")).scaledFont(13, weight: .semibold)
                 HStack(alignment: .bottom, spacing: 14) {
                     ForEach(days) { day in
                         VStack(spacing: 6) {
                             Text(day.activeSeconds >= 60 ? shortHours(day.activeSeconds) : "")
-                                .font(.caption2)
+                                .scaledFont(10)
                                 .foregroundColor(.secondary)
                             RoundedRectangle(cornerRadius: 5)
                                 .fill(day.day == stats.today.day ? AnyShapeStyle(Palette.gradient) : AnyShapeStyle(Palette.accent.opacity(0.35)))
                                 .frame(height: max(4, 110 * day.activeSeconds / maxSeconds))
                             Text(weekdayLabel(day.day))
-                                .font(.caption)
+                                .scaledFont(10.5)
                                 .foregroundColor(.secondary)
                         }
                         .frame(maxWidth: .infinity)

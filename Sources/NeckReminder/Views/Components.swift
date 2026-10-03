@@ -60,10 +60,10 @@ struct StatTile: View {
         Card {
             VStack(alignment: .leading, spacing: 6) {
                 Label(title, systemImage: symbol)
-                    .font(.caption)
+                    .scaledFont(10.5)
                     .foregroundColor(.secondary)
                 Text(value)
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .scaledFont(22, weight: .semibold, design: .rounded)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
@@ -77,7 +77,7 @@ struct PageHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 26, weight: .bold, design: .rounded))
+            Text(title).scaledFont(26, weight: .bold, design: .rounded)
             if let subtitle {
                 Text(subtitle).foregroundColor(.secondary)
             }
@@ -94,7 +94,7 @@ struct Chip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, weight: .medium)
                 .padding(.vertical, 6)
                 .padding(.horizontal, 12)
                 .foregroundColor(selected ? .white : .primary)

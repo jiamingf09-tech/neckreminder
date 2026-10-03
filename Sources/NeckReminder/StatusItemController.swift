@@ -106,6 +106,29 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         pauseItem.submenu = pauseMenu
         menu.addItem(pauseItem)
 
+        // "I'm reading / in a meeting": don't treat stillness as leaving for a while.
+        let holdItem = NSMenuItem(title: tr("我在阅读 / 开会", "I'm reading / in a meeting"), action: nil, keyEquivalent: "")
+        let holdMenu = NSMenu()
+        holdMenu.autoenablesItems = false
+        if let until = prefs.presenceHoldUntil, until > Date() {
+            let f = DateFormatter()
+            f.timeStyle = .short
+            let info = NSMenuItem(title: tr("进行中，至 \(f.string(from: until))", "On until \(f.string(from: until))"), action: nil, keyEquivalent: "")
+            info.isEnabled = false
+            holdMenu.addItem(info)
+            holdMenu.addItem(makeItem(tr("结束", "End now"), #selector(endHold)))
+            holdMenu.addItem(.separator())
+        }
+        for minutes in [30, 60, 120] {
+            let item = makeItem(minutes < 60 ? tr("\(minutes) 分钟内不判定离开", "Don't count me away for \(minutes) min")
+                                             : tr("\(minutes / 60) 小时内不判定离开", "Don't count me away for \(minutes / 60) h"),
+                                #selector(hold(_:)))
+            item.representedObject = minutes
+            holdMenu.addItem(item)
+        }
+        holdItem.submenu = holdMenu
+        menu.addItem(holdItem)
+
         let enabledItem = makeItem(tr("启用提醒", "Reminders enabled"), #selector(toggleEnabled))
         enabledItem.state = prefs.enabled ? .on : .off
         menu.addItem(enabledItem)
@@ -134,6 +157,17 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func resume() { controller.resume(); refresh() }
     @objc private func toggleEnabled() { prefs.enabled.toggle(); refresh() }
     @objc private func quit() { NSApp.terminate(nil) }
+
+    @objc private func hold(_ sender: NSMenuItem) {
+        guard let minutes = sender.representedObject as? Int else { return }
+        controller.holdPresence(minutes: minutes)
+        refresh()
+    }
+
+    @objc private func endHold() {
+        controller.cancelPresenceHold()
+        refresh()
+    }
 
     @objc private func pause(_ sender: NSMenuItem) {
         guard let seconds = sender.representedObject as? Double else { return }
