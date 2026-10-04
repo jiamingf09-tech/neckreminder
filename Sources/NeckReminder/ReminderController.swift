@@ -252,7 +252,7 @@ final class ReminderController: NSObject, ObservableObject {
         } else if gap.hadHardAway {
             episode.label = .away
             episode.source = .implicit
-        } else if gap.countedAsPresent, gap.duration < 600, snap.frontmostID != nil, snap.frontmostID == context.appID {
+        } else if gap.countedAsPresent, gap.duration < 600, snap.frontmostID != nil, snap.frontmostID == context.frontAppID {
             // Picked up where they left off in the same app shortly after: most likely reading.
             episode.label = .present
             episode.source = .implicit

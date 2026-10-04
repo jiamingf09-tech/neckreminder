@@ -25,6 +25,8 @@ struct VisualEffectBlur: NSViewRepresentable {
 @MainActor
 final class QuestionModel: ObservableObject {
     @Published var minutes = 0
+    /// Describes what was going on, e.g. "Chrome 在播放视频（前台：PowerPoint）".
+    @Published var detail: String?
     @Published var appName: String?
     @Published var secondsLeft = 20
     @Published var hovering = false
@@ -58,6 +60,7 @@ final class FeedbackPanelController: NSObject {
         dismissQuestion(answered: true)
         episodeID = episode.id
         question.minutes = max(1, Int((episode.gap.duration / 60).rounded()))
+        question.detail = episode.context.summary
         question.appName = episode.context.appName
         question.secondsLeft = 20
         question.hovering = false
@@ -166,8 +169,11 @@ struct QuestionView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(tr("刚才 \(model.minutes) 分钟没有操作", "No input for the last \(model.minutes) min"))
                         .font(.system(size: 14 * s, weight: .semibold))
-                    if let app = model.appName {
-                        Text(app).font(.system(size: 11 * s)).foregroundColor(.secondary)
+                    if let detail = model.detail {
+                        Text(detail)
+                            .font(.system(size: 11 * s))
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer(minLength: 12)
@@ -197,8 +203,8 @@ struct QuestionView: View {
                 .buttonStyle(QuestionButtonStyle(prominent: false))
             }
             HStack {
-                if model.appName != nil {
-                    Button(tr("这个应用别再问", "Don't ask for this app"), action: neverAsk)
+                if let app = model.appName {
+                    Button(tr("「\(app)」别再问", "Don't ask for \(app)"), action: neverAsk)
                         .buttonStyle(.borderless)
                         .font(.system(size: 11 * s))
                         .foregroundColor(.secondary)

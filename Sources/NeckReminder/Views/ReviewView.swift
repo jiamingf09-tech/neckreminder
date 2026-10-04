@@ -189,8 +189,8 @@ private struct GapRow: View {
                     Text("\(Self.time.string(from: episode.gap.start)) – \(Self.time.string(from: episode.gap.end))")
                         .monospacedDigit()
                     Text(formatMinutes(episode.gap.duration)).foregroundColor(.secondary)
-                    if let app = episode.context.appName {
-                        Text("· \(app)").foregroundColor(.secondary)
+                    if let detail = episode.context.summary {
+                        Text("· \(detail)").foregroundColor(.secondary).lineLimit(1)
                     }
                 }
                 .scaledFont(13, weight: .medium)

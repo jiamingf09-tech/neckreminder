@@ -13,10 +13,28 @@ public enum CallKind: String, Codable, Equatable {
     case video
 }
 
+/// Why a silence is attributed to a particular app.
+public enum FocusReason: String, Codable, Equatable {
+    /// Nothing else going on: the frontmost app.
+    case frontmost
+    /// An app playing video (it may be on another display, behind the front window).
+    case video
+    /// A picture-in-picture window.
+    case pip
+    /// The app holding the microphone / camera.
+    case call
+}
+
 public struct PresenceContext: Codable, Equatable {
-    /// Frontmost app's bundle identifier and name.
+    /// The app the user was most likely paying attention to (used for per-app learning):
+    /// a call or picture-in-picture or playing video beats whatever happens to be frontmost.
     public var appID: String?
     public var appName: String?
+    /// How `appID` was chosen.
+    public var focus: FocusReason?
+    /// The frontmost app, which may differ from `appID`.
+    public var frontAppID: String?
+    public var frontAppName: String?
     /// A GUI app keeps the display awake (windowed or full-screen video, slideshow, call).
     public var videoPlaying: Bool
     /// A small always-on-top video window (picture in picture) is on screen.
@@ -31,11 +49,15 @@ public struct PresenceContext: Codable, Equatable {
     /// Share of the last ~5 minutes with any input (0…1).
     public var recentInput: Double
 
-    public init(appID: String? = nil, appName: String? = nil, videoPlaying: Bool = false,
+    public init(appID: String? = nil, appName: String? = nil, focus: FocusReason? = nil,
+                frontAppID: String? = nil, frontAppName: String? = nil, videoPlaying: Bool = false,
                 pictureInPicture: Bool = false, audioOnly: Bool = false, call: CallKind = .none,
                 frontmostFullscreen: Bool = false, recentTyping: Double = 0, recentInput: Double = 0) {
         self.appID = appID
         self.appName = appName
+        self.focus = focus
+        self.frontAppID = frontAppID ?? appID
+        self.frontAppName = frontAppName ?? appName
         self.videoPlaying = videoPlaying
         self.pictureInPicture = pictureInPicture
         self.audioOnly = audioOnly
@@ -43,6 +65,30 @@ public struct PresenceContext: Codable, Equatable {
         self.frontmostFullscreen = frontmostFullscreen
         self.recentTyping = recentTyping
         self.recentInput = recentInput
+    }
+
+    /// One line describing the situation, without claiming more than is known, e.g.
+    /// "Chrome 在播放视频（前台：PowerPoint）" or "前台应用：Keynote".
+    public var summary: String? {
+        guard let name = appName else { return nil }
+        let front = frontAppName.flatMap { $0 != name ? $0 : nil }
+        var text: String
+        switch focus ?? .frontmost {
+        case .call:
+            switch call {
+            case .video: text = tr("\(name) 视频通话中", "Video call in \(name)")
+            case .meeting: text = tr("\(name) 会议中", "Meeting in \(name)")
+            default: text = tr("\(name) 通话中", "Call in \(name)")
+            }
+        case .pip: text = tr("\(name) 画中画播放中", "Picture in picture: \(name)")
+        case .video: text = tr("\(name) 在播放视频", "\(name) playing video")
+        case .frontmost: text = tr("前台应用：\(name)", "Front app: \(name)")
+        }
+        if focus != nil, focus != .frontmost, let front {
+            text += tr("（前台：\(front)）", " (front: \(front))")
+        }
+        if audioOnly { text += tr(" · 有声音在播放", " · audio playing") }
+        return text
     }
 
     /// Merge what was seen during a silence: any video / call during it counts.

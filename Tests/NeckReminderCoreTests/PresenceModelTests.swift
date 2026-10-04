@@ -57,6 +57,18 @@ final class PresenceModelTests: XCTestCase {
         XCTAssertLessThan(g, 20 * 60)
     }
 
+    func testSummaryDoesNotClaimTheFrontAppWhenSomethingElseIsPlaying() {
+        L10n.language = .zh
+        defer { L10n.language = .system }
+        let video = PresenceContext(appID: "com.google.Chrome", appName: "Chrome", focus: .video,
+                                    frontAppID: "com.microsoft.Powerpoint", frontAppName: "PowerPoint", videoPlaying: true)
+        XCTAssertEqual(video.summary, "Chrome 在播放视频（前台：PowerPoint）")
+        let plain = PresenceContext(appID: "com.apple.finder", appName: "Finder", focus: .frontmost)
+        XCTAssertEqual(plain.summary, "前台应用：Finder")
+        XCTAssertEqual(plain.frontAppID, "com.apple.finder")
+        XCTAssertNil(PresenceContext().summary)
+    }
+
     func testAccuracy() {
         let e1 = GapEpisode(gap: gap(5, at: 0, counted: true), context: PresenceContext(), label: .present, source: .user, predicted: 0.8)
         let e2 = GapEpisode(gap: gap(5, at: 0, counted: true), context: PresenceContext(), label: .away, source: .user, predicted: 0.8)

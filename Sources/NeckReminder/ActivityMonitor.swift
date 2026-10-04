@@ -14,6 +14,12 @@ import NeckReminderCore
 /// * Display-sleep power assertions (`IOPMCopyAssertionsByProcess`) — the same data
 ///   `pmset -g assertions` shows. A GUI app keeping the display awake is almost always
 ///   playing video or in a call.
+/// An app, possibly only known by name (e.g. a WebKit media process).
+struct AppRef: Equatable {
+    var name: String
+    var bundleID: String?
+}
+
 @MainActor
 final class ActivityMonitor {
     struct Snapshot {
@@ -25,21 +31,47 @@ final class ActivityMonitor {
         var sessionInactive: Bool
         /// GUI apps keeping the display awake (video, slideshow, call).
         var mediaApps: [String]
+        var mediaAppRefs: [AppRef]
         var frontmostID: String?
         var frontmostName: String?
         var frontmostPID: pid_t?
         var frontmostFullscreen: Bool
         var pipApps: [String]
+        var pipRefs: [AppRef]
         var devices: MediaDevices.Status
         var call: CallKind
         var recentTyping: Double
         var recentInput: Double
 
+        /// The app the user is most likely attending to: a call, then picture in picture,
+        /// then a playing video (the front app if it is the one playing, otherwise the other
+        /// one — e.g. a video on the second display), otherwise the front app.
+        var focus: (ref: AppRef?, reason: FocusReason) {
+            let front = frontmostName.map { AppRef(name: $0, bundleID: frontmostID) }
+            if call != .none {
+                let callApp = devices.inputApps.sorted().first.map { id in
+                    AppRef(name: NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.localizedName ?? id,
+                           bundleID: id)
+                }
+                return (callApp ?? front, .call)
+            }
+            if let pip = pipRefs.first { return (pip, .pip) }
+            if !mediaAppRefs.isEmpty {
+                if let front, mediaAppRefs.contains(where: { $0.bundleID == front.bundleID || $0.name == front.name }) {
+                    return (front, .video)
+                }
+                return (mediaAppRefs.first, .video)
+            }
+            return (front, .frontmost)
+        }
+
         /// The context used by the presence model.
         var context: PresenceContext {
             let video = !mediaApps.isEmpty
             let pip = !pipApps.isEmpty
-            return PresenceContext(appID: frontmostID, appName: frontmostName,
+            let f = focus
+            return PresenceContext(appID: f.ref?.bundleID ?? f.ref?.name, appName: f.ref?.name, focus: f.reason,
+                                   frontAppID: frontmostID, frontAppName: frontmostName,
                                    videoPlaying: video, pictureInPicture: pip,
                                    audioOnly: devices.outputActive && !video && !pip,
                                    call: call, frontmostFullscreen: frontmostFullscreen,
@@ -63,7 +95,7 @@ final class ActivityMonitor {
     private var systemSleeping = false
     private var sleptSinceLastSample = false
 
-    private var cachedMediaApps: [String] = []
+    private var cachedMediaApps: [AppRef] = []
 
     init() {
         let ws = NSWorkspace.shared.notificationCenter
@@ -128,17 +160,20 @@ final class ActivityMonitor {
         // Picture in picture: the system PiP window, or a floating window of an app that is
         // playing sound or keeping the display awake.
         var pip: [String] = []
+        var pipRefs: [AppRef] = []
         for candidate in cachedWindows.floatingVideoCandidates {
             let app = NSRunningApplication(processIdentifier: candidate.pid)
             let bundleID = app?.bundleIdentifier ?? ""
             let name = app?.localizedName ?? candidate.owner
-            let playing = cachedDevices.outputApps.contains(bundleID) || cachedMediaApps.contains(name)
+            let playing = cachedDevices.outputApps.contains(bundleID) || cachedMediaApps.contains { $0.name == name }
                 || (cachedDevices.outputApps.isEmpty && cachedDevices.outputActive)
             if WindowInspector.isSystemPictureInPicture(candidate.owner) || playing {
-                pip.append(name)
+                if !pip.contains(name) {
+                    pip.append(name)
+                    pipRefs.append(AppRef(name: name, bundleID: app?.bundleIdentifier))
+                }
             }
         }
-        pip = Array(Set(pip)).sorted()
 
         let sample = ActivitySample(
             date: now,
@@ -155,14 +190,16 @@ final class ActivityMonitor {
                         displayAsleep: displayAsleep,
                         screenSaver: screenSaverRunning,
                         sessionInactive: inactive,
-                        mediaApps: cachedMediaApps,
+                        mediaApps: cachedMediaApps.map(\.name),
+                        mediaAppRefs: cachedMediaApps,
                         frontmostID: front?.bundleIdentifier,
                         frontmostName: front?.localizedName,
                         frontmostPID: front?.processIdentifier,
                         frontmostFullscreen: cachedWindows.frontmostFullscreen,
                         pipApps: pip,
+                        pipRefs: pipRefs,
                         devices: cachedDevices,
-                        call: MeetingApps.classify(status: cachedDevices, displayAwakeApps: cachedMediaApps),
+                        call: MeetingApps.classify(status: cachedDevices, displayAwakeApps: cachedMediaApps.map(\.name)),
                         recentTyping: recentTyping,
                         recentInput: recentInput)
     }
@@ -186,13 +223,13 @@ final class ActivityMonitor {
     private static let keepAwakeMarkers = ["caffeinate", "caffeine", "amphetamine", "keepingyouawake",
                                            "lungo", "theine", "jiggler", "insomnia", "nosleep", "owly", "neckreminder"]
 
-    static func appsKeepingDisplayAwake() -> [String] {
+    static func appsKeepingDisplayAwake() -> [AppRef] {
         var unmanaged: Unmanaged<CFDictionary>?
         guard IOPMCopyAssertionsByProcess(&unmanaged) == kIOReturnSuccess,
               let byPID = unmanaged?.takeRetainedValue() as NSDictionary? else { return [] }
 
         let ownPID = ProcessInfo.processInfo.processIdentifier
-        var names = Set<String>()
+        var refs: [String: AppRef] = [:]
         for (key, value) in byPID {
             guard let pid = (key as? NSNumber)?.int32Value, pid != ownPID,
                   let assertions = value as? [NSDictionary] else { continue }
@@ -217,9 +254,19 @@ final class ActivityMonitor {
                 || path.contains("WebKit")
             guard isAppRelated else { continue }
 
-            names.insert(displayName(pid: pid, path: path, app: app))
+            let name = displayName(pid: pid, path: path, app: app)
+            refs[name] = AppRef(name: name, bundleID: bundleID(path: path, app: app))
         }
-        return names.sorted()
+        return refs.values.sorted { $0.name < $1.name }
+    }
+
+    /// Bundle id of the app a (possibly helper) process belongs to.
+    private static func bundleID(path: String, app: NSRunningApplication?) -> String? {
+        if app?.activationPolicy == .regular, let id = app?.bundleIdentifier { return id }
+        if let range = path.range(of: ".app/") {
+            return Bundle(path: String(path[..<range.lowerBound]) + ".app")?.bundleIdentifier
+        }
+        return nil
     }
 
     private static func executablePath(_ pid: pid_t) -> String? {

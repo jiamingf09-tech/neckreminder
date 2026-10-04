@@ -158,21 +158,10 @@ jobs:
     permissions:
       actions: write
     steps:
+      - uses: actions/checkout@v4
       - name: Delete old artifacts and runs
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
-        run: |
-          gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
-              --jq ".artifacts[] | select(.workflow_run.id != $RUN_ID) | .id" |
-            while read -r id; do
-              gh api -X DELETE "repos/$REPO/actions/artifacts/$id" && echo "deleted artifact $id"
-            done
-          gh api --paginate "repos/$REPO/actions/runs?status=completed&per_page=100" --jq '.workflow_runs[].id' |
-            tail -n +6 |
-            while read -r id; do
-              if [ "$id" != "$RUN_ID" ]; then
-                gh api -X DELETE "repos/$REPO/actions/runs/$id" && echo "deleted run $id"
-              fi
-            done
+        run: scripts/ci-cleanup.sh
