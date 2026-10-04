@@ -184,16 +184,19 @@ private struct GapRow: View {
             if episode.awaitingReview && episode.source != .user {
                 Circle().fill(Color.orange).frame(width: 8, height: 8).help(tr("当时在演示或全屏，没有询问", "Not asked at the time (presenting / full screen)"))
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text("\(Self.time.string(from: episode.gap.start)) – \(Self.time.string(from: episode.gap.end))")
                         .monospacedDigit()
                     Text(formatMinutes(episode.gap.duration)).foregroundColor(.secondary)
-                    if let detail = episode.context.summary {
-                        Text("· \(detail)").foregroundColor(.secondary).lineLimit(1)
-                    }
                 }
                 .scaledFont(13, weight: .medium)
+                if let detail = episode.context.summary {
+                    Text(detail)
+                        .scaledFont(12)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 HStack(spacing: 6) {
                     ForEach(contextTags, id: \.self) { tag in
                         Text(tag)
@@ -204,6 +207,7 @@ private struct GapRow: View {
                     Text(statusText).scaledFont(11).foregroundColor(.secondary)
                 }
             }
+            .layoutPriority(1)
             Spacer()
             choice(.present, tr("使用电脑", "Using"))
             choice(.away, tr("离开了", "Away"))
@@ -244,6 +248,7 @@ private struct GapRow: View {
         return Button { answer(label) } label: {
             Text(title)
                 .scaledFont(12, weight: confirmed ? .semibold : .regular)
+                .fixedSize()
                 .padding(.horizontal, 10).padding(.vertical, 4)
                 .foregroundColor(confirmed ? .white : .primary)
                 .background(

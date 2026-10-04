@@ -14,6 +14,15 @@ import NeckReminderCore
 /// * Display-sleep power assertions (`IOPMCopyAssertionsByProcess`) — the same data
 ///   `pmset -g assertions` shows. A GUI app keeping the display awake is almost always
 ///   playing video or in a call.
+/// Dedicated music / video players: while their audio output runs, they are playing.
+enum MediaPlayers {
+    static let bundleIDs: Set<String> = [
+        "com.apple.Music", "com.apple.podcasts", "com.apple.TV", "com.apple.QuickTimePlayerX",
+        "com.spotify.client", "com.netease.163music", "com.tencent.QQMusicMac", "com.kugou.mac",
+        "com.colliderli.iina", "org.videolan.vlc", "com.firecore.infuse", "tv.plex.desktop",
+    ]
+}
+
 /// An app, possibly only known by name (e.g. a WebKit media process).
 struct AppRef: Equatable {
     var name: String
@@ -32,6 +41,8 @@ final class ActivityMonitor {
         /// GUI apps keeping the display awake (video, slideshow, call).
         var mediaApps: [String]
         var mediaAppRefs: [AppRef]
+        /// Apps audibly playing sound right now.
+        var audibleApps: [String]
         var frontmostID: String?
         var frontmostName: String?
         var frontmostPID: pid_t?
@@ -73,7 +84,7 @@ final class ActivityMonitor {
             return PresenceContext(appID: f.ref?.bundleID ?? f.ref?.name, appName: f.ref?.name, focus: f.reason,
                                    frontAppID: frontmostID, frontAppName: frontmostName,
                                    videoPlaying: video, pictureInPicture: pip,
-                                   audioOnly: devices.outputActive && !video && !pip,
+                                   audioOnly: !audibleApps.isEmpty && !video && !pip,
                                    call: call, frontmostFullscreen: frontmostFullscreen,
                                    recentTyping: recentTyping, recentInput: recentInput)
         }
@@ -96,6 +107,7 @@ final class ActivityMonitor {
     private var sleptSinceLastSample = false
 
     private var cachedMediaApps: [AppRef] = []
+    private var cachedAudible: [AppRef] = []
 
     init() {
         let ws = NSWorkspace.shared.notificationCenter
@@ -151,9 +163,18 @@ final class ActivityMonitor {
         // typing, refresh them now and then.
         let contextAge = now.timeIntervalSince(cachedContextAt)
         if (idle > 20 && contextAge > 4) || contextAge > 30 {
-            cachedMediaApps = Self.appsKeepingDisplayAwake()
+            let scan = Self.scanAssertions()
+            cachedMediaApps = scan.displayAwake
             cachedWindows = WindowInspector.inspect(frontmostPID: front?.processIdentifier)
             cachedDevices = MediaDevices.status()
+            // Dedicated players count while their audio is running; anything else (browsers,
+            // chat apps…) only when it says it is audibly playing.
+            var audible = scan.audible
+            for id in cachedDevices.outputApps where MediaPlayers.bundleIDs.contains(id) && !audible.contains(where: { $0.bundleID == id }) {
+                let name = NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.localizedName ?? id
+                audible.append(AppRef(name: name, bundleID: id))
+            }
+            cachedAudible = audible
             cachedContextAt = now
         }
 
@@ -165,8 +186,8 @@ final class ActivityMonitor {
             let app = NSRunningApplication(processIdentifier: candidate.pid)
             let bundleID = app?.bundleIdentifier ?? ""
             let name = app?.localizedName ?? candidate.owner
-            let playing = cachedDevices.outputApps.contains(bundleID) || cachedMediaApps.contains { $0.name == name }
-                || (cachedDevices.outputApps.isEmpty && cachedDevices.outputActive)
+            let playing = cachedAudible.contains { $0.bundleID == bundleID || $0.name == name }
+                || cachedMediaApps.contains { $0.bundleID == bundleID || $0.name == name }
             if WindowInspector.isSystemPictureInPicture(candidate.owner) || playing {
                 if !pip.contains(name) {
                     pip.append(name)
@@ -192,6 +213,7 @@ final class ActivityMonitor {
                         sessionInactive: inactive,
                         mediaApps: cachedMediaApps.map(\.name),
                         mediaAppRefs: cachedMediaApps,
+                        audibleApps: cachedAudible.map(\.name),
                         frontmostID: front?.bundleIdentifier,
                         frontmostName: front?.localizedName,
                         frontmostPID: front?.processIdentifier,
@@ -223,28 +245,44 @@ final class ActivityMonitor {
     private static let keepAwakeMarkers = ["caffeinate", "caffeine", "amphetamine", "keepingyouawake",
                                            "lungo", "theine", "jiggler", "insomnia", "nosleep", "owly", "neckreminder"]
 
-    static func appsKeepingDisplayAwake() -> [AppRef] {
+    struct AssertionScan {
+        /// GUI apps keeping the display awake (video, slideshow, call).
+        var displayAwake: [AppRef] = []
+        /// GUI apps that say they are *audibly* playing (browsers take a "Playing audio"
+        /// assertion only while a page actually makes sound, unlike an open-but-silent
+        /// audio stream).
+        var audible: [AppRef] = []
+    }
+
+    private static let displayTypes: Set<String> = ["PreventUserIdleDisplaySleep", "NoDisplaySleepAssertion"]
+    private static let sleepTypes: Set<String> = ["PreventUserIdleSystemSleep", "NoIdleSleepAssertion", "PreventSystemSleep"]
+    private static let audioWords = ["audio", "playing", "playback", "music", "sound", "media"]
+
+    static func scanAssertions() -> AssertionScan {
         var unmanaged: Unmanaged<CFDictionary>?
         guard IOPMCopyAssertionsByProcess(&unmanaged) == kIOReturnSuccess,
-              let byPID = unmanaged?.takeRetainedValue() as NSDictionary? else { return [] }
+              let byPID = unmanaged?.takeRetainedValue() as NSDictionary? else { return AssertionScan() }
 
         let ownPID = ProcessInfo.processInfo.processIdentifier
-        var refs: [String: AppRef] = [:]
+        var display: [String: AppRef] = [:]
+        var audible: [String: AppRef] = [:]
         for (key, value) in byPID {
             guard let pid = (key as? NSNumber)?.int32Value, pid != ownPID,
                   let assertions = value as? [NSDictionary] else { continue }
-            let keepsDisplayOn = assertions.contains { a in
-                let type = a["AssertType"] as? String ?? ""
-                return type == "PreventUserIdleDisplaySleep" || type == "NoDisplaySleepAssertion"
+            let keepsDisplayOn = assertions.contains { displayTypes.contains($0["AssertType"] as? String ?? "") }
+            let playsAudio = assertions.contains { a in
+                guard sleepTypes.contains(a["AssertType"] as? String ?? "") else { return false }
+                let name = (a["AssertName"] as? String ?? "").lowercased()
+                return audioWords.contains { name.contains($0) }
             }
-            guard keepsDisplayOn else { continue }
+            guard keepsDisplayOn || playsAudio else { continue }
 
             let path = executablePath(pid) ?? ""
             let app = NSRunningApplication(processIdentifier: pid)
             let lowered = (path + " " + (app?.bundleIdentifier ?? "")).lowercased()
             if keepAwakeMarkers.contains(where: { lowered.contains($0) }) { continue }
-            // loginwindow and friends are not someone watching a video.
-            if path.hasPrefix("/System/Library/CoreServices/") { continue }
+            // loginwindow, coreaudiod and friends are system services, not someone watching.
+            if path.hasPrefix("/System/Library/CoreServices/") || path.hasPrefix("/usr/") { continue }
 
             // Count GUI apps and their helpers (browser / Electron helpers live inside the .app,
             // Safari's media playback runs in WebKit XPC services). Command-line tools and
@@ -255,9 +293,12 @@ final class ActivityMonitor {
             guard isAppRelated else { continue }
 
             let name = displayName(pid: pid, path: path, app: app)
-            refs[name] = AppRef(name: name, bundleID: bundleID(path: path, app: app))
+            let ref = AppRef(name: name, bundleID: bundleID(path: path, app: app))
+            if keepsDisplayOn { display[name] = ref }
+            if playsAudio { audible[name] = ref }
         }
-        return refs.values.sorted { $0.name < $1.name }
+        return AssertionScan(displayAwake: display.values.sorted { $0.name < $1.name },
+                             audible: audible.values.sorted { $0.name < $1.name })
     }
 
     /// Bundle id of the app a (possibly helper) process belongs to.

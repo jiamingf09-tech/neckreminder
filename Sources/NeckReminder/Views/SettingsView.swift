@@ -314,8 +314,7 @@ struct DiagnosticsSection: View {
                 row(tr("前台应用", "Front app"), (snap.frontmostName ?? "—") + (snap.frontmostFullscreen ? tr("（全屏）", " (full screen)") : ""))
                 row(tr("画中画窗口", "Picture in picture"), snap.pipApps.isEmpty ? tr("无", "None") : snap.pipApps.joined(separator: ", "))
                 row(tr("正在出声的应用", "Apps playing sound"),
-                    snap.devices.outputApps.isEmpty ? (snap.devices.outputActive ? tr("有声音（无法区分应用）", "Yes (app unknown)") : tr("无", "None"))
-                                                    : snap.devices.outputApps.sorted().joined(separator: ", "))
+                    snap.audibleApps.isEmpty ? tr("无", "None") : snap.audibleApps.joined(separator: ", "))
                 row(tr("麦克风 / 摄像头使用中", "Microphone / camera in use"),
                     "\(yesNo(snap.devices.micInUse)) / \(yesNo(snap.devices.cameraInUse))")
                 row(tr("通话判断", "Call"), callLabel(snap.call))
