@@ -135,6 +135,19 @@ final class TrackerGapTests: XCTestCase {
         XCTAssertEqual(tracker.continuousUse, 600 + 60, accuracy: 0.001)
     }
 
+    func testRelaxSessionIsNotReportedAsSilence() {
+        let tracker = UsageTracker()
+        _ = feed(tracker, 0, 600, idle: { _ in 1 })
+        // A 2-minute routine without touching the computer, then the session ends.
+        tracker.suspend()
+        tracker.resume(at: t0.addingTimeInterval(725))
+        // The system still says "no input since t = 600"; the user comes back at t = 760.
+        var updates = feed(tracker, 730, 755, idle: { $0 - 600 })
+        updates += feed(tracker, 760, 765, idle: { _ in 1 })
+        XCTAssertNil(updates.compactMap(\.endedGap).first, "the routine must not count as a silence")
+        XCTAssertEqual(tracker.state, .active)
+    }
+
     func testAwayHintMovesStartOfAbsence() {
         let tracker = UsageTracker()
         _ = feed(tracker, 0, 600, idle: { _ in 1 })

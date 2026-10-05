@@ -150,6 +150,9 @@ public final class UsageTracker {
     public private(set) var lastInputDate: Date?
 
     public private(set) var isSuspended = false
+    /// Silence before this moment is not the user's (e.g. they were doing a relax routine);
+    /// idle times reported by the system are clipped to it.
+    public private(set) var ignoreInputBefore: Date?
 
     private var breakCounted = false
     private var returnEvidence = 0
@@ -181,6 +184,7 @@ public final class UsageTracker {
     /// interval is not counted either way.
     public func resume(at date: Date) {
         isSuspended = false
+        ignoreInputBefore = date
         lastSampleDate = date
         lastInputDate = date
         state = .active
@@ -222,7 +226,13 @@ public final class UsageTracker {
     }
 
     @discardableResult
-    public func ingest(_ s: ActivitySample) -> TrackerUpdate {
+    public func ingest(_ raw: ActivitySample) -> TrackerUpdate {
+        var s = raw
+        if let floor = ignoreInputBefore {
+            let sinceFloor = max(0, s.date.timeIntervalSince(floor))
+            s.idleSeconds = min(s.idleSeconds, sinceFloor)
+            s.strongIdleSeconds = min(s.strongIdleSeconds, sinceFloor)
+        }
         var update = TrackerUpdate()
         let previousState = state
         defer { update.stateChanged = previousState != state }

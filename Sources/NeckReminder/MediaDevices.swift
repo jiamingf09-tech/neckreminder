@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import CoreAudio
 import NeckReminderCore
@@ -79,6 +80,7 @@ enum MediaDevices {
     // systems where the constants don't exist (the property is simply absent there).
     private static let processObjectList = AudioObjectPropertySelector(0x7072_7323) // 'prs#'
     private static let processBundleID = AudioObjectPropertySelector(0x7062_6964)   // 'pbid'
+    private static let processPID = AudioObjectPropertySelector(0x7070_6964)          // 'ppid'
     private static let processRunningInput = AudioObjectPropertySelector(0x7069_7269)  // 'piri'
     private static let processRunningOutput = AudioObjectPropertySelector(0x7069_726F) // 'piro'
 
@@ -104,14 +106,38 @@ enum MediaDevices {
         var output: Bool
     }
 
+    /// Audio clients resolved to the *app* they belong to. Background services (audio
+    /// routing daemons such as Rogue Amoeba's ARK, dictation, menu bar utilities…) are
+    /// dropped: only regular, Dock-visible apps can be in a call or play media.
     private static func audioProcesses() -> [AudioProcess] {
         let ownBundle = Bundle.main.bundleIdentifier
         return objectList(AudioObjectID(kAudioObjectSystemObject), processObjectList).compactMap { object in
             let input = (uint32(object, processRunningInput) ?? 0) != 0
             let output = (uint32(object, processRunningOutput) ?? 0) != 0
-            guard input || output, let id = string(object, processBundleID), !id.isEmpty, id != ownBundle else { return nil }
+            guard input || output else { return nil }
+            let pid = uint32(object, processPID).map { pid_t(bitPattern: $0) }
+            let reported = string(object, processBundleID)
+            guard let id = owningAppBundleID(pid: pid, reported: reported), id != ownBundle else { return nil }
             return AudioProcess(bundleID: id, input: input, output: output)
         }
+    }
+
+    private static func owningAppBundleID(pid: pid_t?, reported: String?) -> String? {
+        if let pid, let app = NSRunningApplication(processIdentifier: pid) {
+            if app.activationPolicy == .regular { return app.bundleIdentifier }
+            // A helper (browser renderer, WebKit service…): find the .app it lives in.
+            if let path = app.executableURL?.path, let range = path.range(of: ".app/"),
+               let id = Bundle(path: String(path[..<range.lowerBound]) + ".app")?.bundleIdentifier,
+               NSRunningApplication.runningApplications(withBundleIdentifier: id).contains(where: { $0.activationPolicy == .regular }) {
+                return id
+            }
+        }
+        // WebKit media processes report the hosting app's id on some systems.
+        if let reported, !reported.isEmpty,
+           NSRunningApplication.runningApplications(withBundleIdentifier: reported).contains(where: { $0.activationPolicy == .regular }) {
+            return reported
+        }
+        return nil
     }
 
     private static func string(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) -> String? {

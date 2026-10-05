@@ -107,6 +107,12 @@ final class ReminderController: NSObject, ObservableObject {
         snapshot = snap
         lastSampleWasMedia = snap.sample.mediaPlaying
         var sample = snap.sample
+        // Stillness during a relax routine is not a silence to learn from or ask about.
+        if let floor = tracker.ignoreInputBefore {
+            let sinceFloor = max(0, now.timeIntervalSince(floor))
+            sample.idleSeconds = min(sample.idleSeconds, sinceFloor)
+            sample.strongIdleSeconds = min(sample.strongIdleSeconds, sinceFloor)
+        }
         let dt = lastTick.map { now.timeIntervalSince($0) } ?? Self.sampleInterval
         let freshInput = sample.idleSeconds <= dt + 0.5
 
