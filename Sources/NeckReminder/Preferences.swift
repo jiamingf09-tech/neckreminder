@@ -48,6 +48,10 @@ final class Preferences: ObservableObject {
     @Published var defaultRoutineMinutes: Int { didSet { set(defaultRoutineMinutes, "defaultRoutineMinutes") } }
     @Published var stepChime: Bool { didSet { set(stepChime, "stepChime") } }
     @Published var voiceGuidance: Bool { didSet { set(voiceGuidance, "voiceGuidance") } }
+    /// Pause before every exercise to read what's next.
+    @Published var prepSeconds: Int { didSet { set(prepSeconds, "prepSeconds") } }
+    /// true: varied mixes; false: the fixed classic routines.
+    @Published var variedRoutines: Bool { didSet { set(variedRoutines, "variedRoutines") } }
 
     // Schedule
     @Published var schedule: ScheduleRules { didSet { setCodable(schedule, "schedule") } }
@@ -102,6 +106,8 @@ final class Preferences: ObservableObject {
         defaultRoutineMinutes = v("defaultRoutineMinutes", 5)
         stepChime = v("stepChime", true)
         voiceGuidance = v("voiceGuidance", false)
+        prepSeconds = v("prepSeconds", 8)
+        variedRoutines = v("variedRoutines", true)
 
         if let data = defaults.data(forKey: "schedule"),
            let rules = try? JSONDecoder().decode(ScheduleRules.self, from: data) {

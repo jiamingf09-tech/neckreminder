@@ -283,8 +283,13 @@ struct SettingsView: View {
                     Text("\(r.minutes) \(tr("分钟", "min")) · \(r.title.text)").tag(r.minutes)
                 }
             }
+            Picker(tr("每个动作前的准备时间", "Get-ready time before each exercise"), selection: $prefs.prepSeconds) {
+                ForEach([5, 8, 10, 15], id: \.self) { n in Text(tr("\(n) 秒", "\(n) s")).tag(n) }
+            }
+            Toggle(tr("推荐组合（每次不同，优先最近没做过的动作）", "Varied mixes (favouring exercises you haven't done lately)"),
+                   isOn: $prefs.variedRoutines)
             Toggle(tr("切换动作时播放提示音", "Chime between exercises"), isOn: $prefs.stepChime)
-            Toggle(tr("语音播报动作（适合闭眼跟练）", "Speak each exercise (eyes-closed friendly)"), isOn: $prefs.voiceGuidance)
+            Toggle(tr("语音播报动作（默认关闭，跟练时也可随时切换）", "Speak each exercise (off by default; can be toggled during a session)"), isOn: $prefs.voiceGuidance)
         } header: {
             Text(tr("放松指南", "Relax guide"))
         }

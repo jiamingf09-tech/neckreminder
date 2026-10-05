@@ -186,3 +186,66 @@ private extension ActivitySample {
         return s
     }
 }
+
+final class RoutineGeneratorTests: XCTestCase {
+    func testGeneratedRoutinesHaveExactLengthAndNoRepeats() {
+        for minutes in RoutineGenerator.lengths {
+            for seed in UInt64(1)...UInt64(25) {
+                let r = RoutineGenerator.generate(minutes: minutes, seed: seed)
+                XCTAssertEqual(r.totalSeconds, minutes * 60, "\(minutes) min, seed \(seed)")
+                let ids = r.steps.filter { $0.side != .right }.map(\.exercise.id)
+                XCTAssertEqual(Set(ids).count, ids.count, "duplicate exercise in \(minutes) min, seed \(seed)")
+                if minutes <= 5 {
+                    XCTAssertFalse(r.steps.contains { $0.exercise.needsStanding }, "short routines stay seated")
+                }
+                XCTAssertTrue(r.steps.allSatisfy { $0.seconds >= 10 })
+            }
+        }
+    }
+
+    func testRoutinesVary() {
+        let sets = Set((UInt64(1)...UInt64(10)).map { seed in
+            RoutineGenerator.generate(minutes: 10, seed: seed).steps.map(\.exercise.id).joined(separator: ",")
+        })
+        XCTAssertGreaterThanOrEqual(sets.count, 4)
+    }
+
+    func testPrefersExercisesNotDoneRecently() {
+        let now = Date()
+        var lastDone: [String: Date] = [:]
+        for e in ExerciseLibrary.all where e.roles.contains(.neckStrength) && e.id != "nods" {
+            lastDone[e.id] = now
+        }
+        for seed in UInt64(1)...UInt64(10) {
+            let r = RoutineGenerator.generate(minutes: 2, lastDone: lastDone, seed: seed, now: now)
+            XCTAssertEqual(r.steps.first?.exercise.id, "nods")
+        }
+    }
+
+    func testCustomRoutineReusesLibrary() {
+        var custom = CustomExercise(name: "Desk push-ups", steps: ["Hands on desk", "Lower slowly"], seconds: 40)
+        custom.videoQuery = ""
+        let combo = CustomRoutine(name: "Mine", items: [
+            .init(exerciseID: "chinTuck", seconds: 30),
+            .init(exerciseID: "sideBend", seconds: 20),
+            .init(exerciseID: custom.exerciseID, seconds: 40),
+            .init(exerciseID: "custom-deleted", seconds: 30),
+        ])
+        let lookup: (String) -> Exercise? = { id in
+            id == custom.exerciseID ? custom.exercise : ExerciseLibrary.all.first { $0.id == id }
+        }
+        let r = combo.routine(lookup: lookup)
+        XCTAssertEqual(r.steps.count, 4) // chin tuck, side bend L + R, custom
+        XCTAssertEqual(r.totalSeconds, 30 + 40 + 40)
+        XCTAssertEqual(custom.exercise.youtubeQuery, "Desk push-ups")
+        XCTAssertEqual(r.totalSeconds(withPreparation: 8), r.totalSeconds + 32)
+    }
+
+    func testLibraryIsRichAndEveryExerciseHasARole() {
+        XCTAssertGreaterThanOrEqual(ExerciseLibrary.all.count, 35)
+        for e in ExerciseLibrary.all {
+            XCTAssertFalse(e.roles.isEmpty, "\(e.id) has no role")
+            XCTAssertFalse(e.howTo.isEmpty)
+        }
+    }
+}

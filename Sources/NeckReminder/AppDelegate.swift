@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let notifications: NotificationManager
     private let controller: ReminderController
     private let session: RelaxSession
+    private let content: ContentStore
     private var mainWindow: MainWindowController!
     private var statusItem: StatusItemController!
     private var cancellables = Set<AnyCancellable>()
@@ -39,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notifications = NotificationManager()
         controller = ReminderController(prefs: prefs, stats: stats, notifications: notifications)
         session = RelaxSession(prefs: prefs)
+        content = ContentStore()
         super.init()
     }
 
@@ -60,7 +62,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(self.notifications)
                 .environmentObject(self.session)
                 .environmentObject(self.controller.learning)
-                .environmentObject(self.controller.bluetooth))
+                .environmentObject(self.controller.bluetooth)
+                .environmentObject(self.content)
+                .environmentObject(self.mainWindow.navigation))
         }
 
         statusItem = StatusItemController(controller: controller, prefs: prefs)
@@ -74,6 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.onTick = { [weak self] in self?.statusItem.refresh() }
 
         controller.session = session
+        session.onExerciseDone = { [weak self] id in self?.content.markDone(id) }
         session.onStarted = { [weak self] in self?.controller.relaxSessionStarted() }
         session.onEnded = { [weak self] completed, active, total in
             self?.controller.relaxSessionEnded(completed: completed, activeTime: active, totalTime: total)

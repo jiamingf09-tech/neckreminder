@@ -18,11 +18,22 @@ struct RelaxView: View {
 struct RoutinePickerView: View {
     @EnvironmentObject var session: RelaxSession
     @EnvironmentObject var prefs: Preferences
+    @EnvironmentObject var content: ContentStore
     @State private var minutes: Int?
+    @State private var seed = UInt64.random(in: 1...(UInt64.max / 2))
+    @State private var editingCombo: CustomRoutine?
+    @State private var comboToDelete: CustomRoutine?
 
-    private var selected: Routine { ExerciseLibrary.routine(minutes: minutes ?? prefs.defaultRoutineMinutes) }
+    private var length: Int { minutes ?? prefs.defaultRoutineMinutes }
+
+    private var selected: Routine {
+        prefs.variedRoutines
+            ? RoutineGenerator.generate(minutes: length, lastDone: content.lastDone, seed: seed)
+            : ExerciseLibrary.routine(minutes: length)
+    }
 
     var body: some View {
+        let routine = selected
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 PageHeader(title: tr("颈椎舒缓指南", "Neck relief guide"),
@@ -30,71 +41,135 @@ struct RoutinePickerView: View {
                                         "How much time do you have? Pick a length and follow the timer."))
 
                 HStack(spacing: 10) {
-                    ForEach(ExerciseLibrary.routines) { routine in
-                        durationButton(routine)
+                    ForEach(RoutineGenerator.lengths, id: \.self) { m in
+                        durationButton(m)
                     }
                 }
 
                 Card {
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack(alignment: .firstTextBaseline) {
+                        HStack(alignment: .top) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(selected.title.text).scaledFont(18, weight: .bold)
-                                Text(selected.subtitle.text).foregroundColor(.secondary)
+                                Text(routine.title.text).scaledFont(18, weight: .bold)
+                                Text(routine.subtitle.text).foregroundColor(.secondary)
+                                Text(durationSummary(routine)).scaledFont(11.5).foregroundColor(.secondary)
                             }
                             Spacer()
                             Button {
-                                session.start(selected)
+                                session.start(routine)
                             } label: {
-                                Label(tr("开始 \(selected.minutes) 分钟放松", "Start \(selected.minutes)-minute session"),
-                                      systemImage: "play.fill")
+                                Label(tr("开始", "Start"), systemImage: "play.fill")
                                     .scaledFont(15, weight: .semibold)
-                                    .padding(.horizontal, 8)
+                                    .padding(.horizontal, 10)
                                     .padding(.vertical, 4)
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(Palette.accent)
                             .controlSize(.large)
                         }
-                        Divider()
-                        ForEach(selected.steps) { step in
-                            HStack(spacing: 10) {
-                                Image(systemName: step.exercise.symbol)
-                                    .frame(width: 22)
-                                    .foregroundColor(Palette.accent)
-                                Text(step.title)
-                                if step.exercise.needsStanding {
-                                    Text(tr("站立", "standing"))
-                                        .scaledFont(10)
-                                        .padding(.horizontal, 6).padding(.vertical, 2)
-                                        .background(Capsule().fill(Color.orange.opacity(0.15)))
-                                }
-                                Spacer()
-                                Text(formatClock(TimeInterval(step.seconds)))
-                                    .monospacedDigit()
-                                    .foregroundColor(.secondary)
+                        HStack {
+                            Picker("", selection: $prefs.variedRoutines) {
+                                Text(tr("推荐组合（每次不同）", "Varied mix")).tag(true)
+                                Text(tr("经典版", "Classic")).tag(false)
                             }
-                            .scaledFont(12)
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(maxWidth: 320)
+                            if prefs.variedRoutines {
+                                Button {
+                                    seed = UInt64.random(in: 1...(UInt64.max / 2))
+                                } label: {
+                                    Label(tr("换一组", "Shuffle"), systemImage: "shuffle")
+                                }
+                            }
+                            Spacer()
                         }
+                        Divider()
+                        RoutineStepList(routine: routine)
                     }
                 }
+
+                combosCard
 
                 GuideExtrasView()
             }
             .padding(24)
         }
+        .sheet(item: $editingCombo) { combo in
+            ComboEditor(combo: combo)
+        }
+        .confirmationDialog(tr("删除这个组合？", "Delete this combo?"), isPresented: Binding(
+            get: { comboToDelete != nil }, set: { if !$0 { comboToDelete = nil } })) {
+            Button(tr("删除", "Delete"), role: .destructive) {
+                if let c = comboToDelete { content.delete(c) }
+                comboToDelete = nil
+            }
+        }
     }
 
-    private func durationButton(_ routine: Routine) -> some View {
-        let isSelected = routine.minutes == selected.minutes
+    private func durationSummary(_ r: Routine) -> String {
+        let prep = prefs.prepSeconds
+        let total = r.totalSeconds(withPreparation: prep)
+        return tr("\(r.steps.count) 个动作 · 动作 \(formatClock(TimeInterval(r.totalSeconds))) + 每个动作前 \(prep) 秒准备 ≈ \(formatClock(TimeInterval(total)))",
+                  "\(r.steps.count) steps · \(formatClock(TimeInterval(r.totalSeconds))) of exercise + \(prep) s to get ready before each ≈ \(formatClock(TimeInterval(total)))")
+    }
+
+    private var combosCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label(tr("我的组合", "My combos"), systemImage: "square.stack.3d.up").scaledFont(13, weight: .semibold)
+                    Spacer()
+                    Button {
+                        editingCombo = CustomRoutine(name: tr("我的组合 \(content.customRoutines.count + 1)",
+                                                             "My combo \(content.customRoutines.count + 1)"))
+                    } label: {
+                        Label(tr("新建组合", "New combo"), systemImage: "plus")
+                    }
+                }
+                if content.customRoutines.isEmpty {
+                    Text(tr("把动作库里喜欢的动作组合起来，按自己的节奏练。也可以在「动作库」里点「加入组合」。",
+                            "Combine your favourite exercises and practise at your own pace — or use “Add to combo” in the exercise library."))
+                        .scaledFont(12)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(content.customRoutines) { combo in
+                    let r = content.routine(for: combo)
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(combo.name.isEmpty ? tr("未命名组合", "Untitled combo") : combo.name)
+                                .scaledFont(13, weight: .medium)
+                            Text(tr("\(r.steps.count) 个动作 · \(formatClock(TimeInterval(r.totalSeconds)))",
+                                    "\(r.steps.count) steps · \(formatClock(TimeInterval(r.totalSeconds)))"))
+                                .scaledFont(11)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Button { session.start(r) } label: { Label(tr("开始", "Start"), systemImage: "play.fill") }
+                            .disabled(r.steps.isEmpty)
+                        Button { editingCombo = combo } label: { Image(systemName: "pencil") }
+                            .help(tr("编辑", "Edit"))
+                        Button { comboToDelete = combo } label: { Image(systemName: "trash") }
+                            .help(tr("删除", "Delete"))
+                    }
+                    .buttonStyle(.borderless)
+                    if combo.id != content.customRoutines.last?.id { Divider() }
+                }
+            }
+        }
+    }
+
+    private func durationButton(_ m: Int) -> some View {
+        let isSelected = m == length
         return Button {
-            minutes = routine.minutes
+            minutes = m
         } label: {
             VStack(spacing: 2) {
-                Text("\(routine.minutes)")
+                Text("\(m)")
                     .scaledFont(26, weight: .bold, design: .rounded)
                 Text(tr("分钟", "min")).scaledFont(10.5)
-                Text(routine.title.text).scaledFont(10).lineLimit(1)
+                Text(ExerciseLibrary.routine(minutes: m).title.text).scaledFont(10).lineLimit(1)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
@@ -105,6 +180,39 @@ struct RoutinePickerView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// The steps of a routine with durations.
+struct RoutineStepList: View {
+    let routine: Routine
+
+    var body: some View {
+        ForEach(routine.steps) { step in
+            HStack(spacing: 10) {
+                Image(systemName: step.exercise.symbol)
+                    .frame(width: 22)
+                    .foregroundColor(Palette.accent)
+                Text(step.title)
+                if step.exercise.needsStanding {
+                    Text(tr("站立", "standing"))
+                        .scaledFont(10)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(Color.orange.opacity(0.15)))
+                }
+                if step.exercise.isCustom {
+                    Text(tr("我的", "mine"))
+                        .scaledFont(10)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(Palette.accent.opacity(0.15)))
+                }
+                Spacer()
+                Text(formatClock(TimeInterval(step.seconds)))
+                    .monospacedDigit()
+                    .foregroundColor(.secondary)
+            }
+            .scaledFont(12)
+        }
     }
 }
 
@@ -183,8 +291,10 @@ struct RoutinePlayerView: View {
     private func header(_ routine: Routine) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("\(routine.title.text) · \(routine.minutes) \(tr("分钟", "min"))").scaledFont(13, weight: .semibold)
+                Text(routine.minutes > 0 ? "\(routine.title.text) · \(routine.minutes) \(tr("分钟", "min"))" : routine.title.text)
+                    .scaledFont(13, weight: .semibold)
                 Spacer()
+                voiceButton
                 textSizeButtons
                 Text(tr("剩余 \(formatClock(session.totalRemaining))", "\(formatClock(session.totalRemaining)) left"))
                     .monospacedDigit()
@@ -199,6 +309,22 @@ struct RoutinePlayerView: View {
         .padding(.horizontal, 24)
         .padding(.top, 20)
         .padding(.bottom, 8)
+    }
+
+    /// Voice guidance on / off (off by default).
+    private var voiceButton: some View {
+        Button {
+            prefs.voiceGuidance.toggle()
+            session.voiceSettingChanged()
+        } label: {
+            Label(prefs.voiceGuidance ? tr("语音播报：开", "Voice: on") : tr("语音播报：关", "Voice: off"),
+                  systemImage: prefs.voiceGuidance ? "speaker.wave.2.fill" : "speaker.slash")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(prefs.voiceGuidance ? Palette.accent : .secondary)
+        }
+        .buttonStyle(.borderless)
+        .help(tr("切换动作时是否朗读动作名称和要领", "Read out each exercise and its first instruction"))
+        .padding(.trailing, 10)
     }
 
     /// Quick text size adjustment right where the guidance is read.
@@ -223,17 +349,33 @@ struct RoutinePlayerView: View {
         .padding(.trailing, 12)
     }
 
+    private static let prepGradient = LinearGradient(colors: [Color.orange, Color(red: 0.98, green: 0.75, blue: 0.2)],
+                                                     startPoint: .topLeading, endPoint: .bottomTrailing)
+
     private func stepView(_ step: RoutineStep) -> some View {
-        HStack(alignment: .top, spacing: 28) {
+        let preparing = session.phase == .prepare
+        return HStack(alignment: .top, spacing: 28) {
             ZStack {
-                ProgressRing(progress: 1 - session.stepRemaining / Double(max(1, step.seconds)), lineWidth: 12)
+                ProgressRing(progress: 1 - session.stepRemaining / session.phaseLength, lineWidth: 12,
+                             gradient: preparing ? Self.prepGradient : Palette.gradient)
                 VStack(spacing: 4) {
-                    Image(systemName: step.exercise.symbol)
-                        .scaledFont(30)
-                        .foregroundColor(Palette.accent)
-                    Text(formatClock(session.stepRemaining))
-                        .scaledFont(40, weight: .bold, design: .rounded)
+                    if preparing {
+                        Text(tr("准备", "Get ready"))
+                            .scaledFont(14, weight: .semibold)
+                            .foregroundColor(.orange)
+                    } else {
+                        Image(systemName: step.exercise.symbol)
+                            .scaledFont(30)
+                            .foregroundColor(Palette.accent)
+                    }
+                    Text(preparing ? "\(Int(session.stepRemaining.rounded(.up)))" : formatClock(session.stepRemaining))
+                        .scaledFont(preparing ? 48 : 40, weight: .bold, design: .rounded)
                         .monospacedDigit()
+                    if preparing {
+                        Text(tr("然后做 \(formatClock(TimeInterval(step.seconds)))", "then \(formatClock(TimeInterval(step.seconds)))"))
+                            .scaledFont(11)
+                            .foregroundColor(.secondary)
+                    }
                     if session.isPaused {
                         Text(tr("已暂停", "Paused")).scaledFont(10.5).foregroundColor(.orange)
                     }
@@ -242,6 +384,11 @@ struct RoutinePlayerView: View {
             .frame(width: 190, height: 190)
 
             VStack(alignment: .leading, spacing: 12) {
+                if preparing {
+                    Label(tr("下一个动作 · 先看看怎么做", "Up next · have a look first"), systemImage: "eye")
+                        .scaledFont(13, weight: .semibold)
+                        .foregroundColor(.orange)
+                }
                 Text(step.exercise.name.text)
                     .scaledFont(34, weight: .bold, design: .rounded)
                 if let side = step.side {
@@ -297,7 +444,11 @@ struct RoutinePlayerView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(Palette.accent)
-            Button { session.next() } label: { Label(tr("下一个", "Next"), systemImage: "forward.fill") }
+            Button { session.next() } label: {
+                session.phase == .prepare
+                    ? Label(tr("现在开始", "Start now"), systemImage: "forward.end.fill")
+                    : Label(tr("下一个", "Next"), systemImage: "forward.fill")
+            }
             Spacer()
             Button(role: .destructive) { session.stop() } label: { Text(tr("结束", "End")) }
         }
@@ -315,8 +466,8 @@ struct RoutinePlayerView: View {
             Text(tr("完成！你的颈椎会感谢你", "Done! Your neck says thanks"))
                 .scaledFont(28, weight: .bold, design: .rounded)
             if let routine = session.routine {
-                Text(tr("完成了 \(routine.minutes) 分钟的「\(routine.title.text)」，计时已重新开始。",
-                        "You finished the \(routine.minutes)-minute “\(routine.title.text)”. The timer has restarted."))
+                Text(tr("完成了「\(routine.title.text)」（\(routine.steps.count) 个动作，\(formatClock(TimeInterval(routine.totalSeconds)))），计时已重新开始。",
+                        "You finished “\(routine.title.text)” (\(routine.steps.count) steps, \(formatClock(TimeInterval(routine.totalSeconds)))). The timer has restarted."))
                     .foregroundColor(.secondary)
             }
             HStack {
