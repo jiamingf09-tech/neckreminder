@@ -144,7 +144,7 @@ final class TrackerGapTests: XCTestCase {
         // The system still says "no input since t = 600"; the user comes back at t = 760.
         var updates = feed(tracker, 730, 755, idle: { $0 - 600 })
         updates += feed(tracker, 760, 765, idle: { _ in 1 })
-        XCTAssertNil(updates.compactMap(\.endedGap).first, "the routine must not count as a silence")
+        XCTAssertTrue(updates.allSatisfy { $0.endedGap == nil }, "the routine must not count as a silence")
         XCTAssertEqual(tracker.state, .active)
     }
 
