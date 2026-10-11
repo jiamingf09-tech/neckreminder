@@ -55,8 +55,10 @@ public struct TrackerConfig: Equatable {
     public var readingGrace: TimeInterval = 180
     /// Grace period used instead while a video / call keeps the display awake.
     public var mediaGrace: TimeInterval = 20 * 60
-    /// Being away at least this long counts as a real break and resets the counter.
-    public var breakReset: TimeInterval = 5 * 60
+    /// Being away at least this long ends the stretch: the continuous-use counter restarts.
+    /// Deliberately short — this measures *continuous* use, so leaving the computer (beyond a
+    /// brief glance away) starts a new stretch.
+    public var breakReset: TimeInterval = 60
     /// Returning from "away" with mouse-movement-only input needs input in this many samples
     /// (a bumped desk or a cat on the trackpad should not end a break).
     /// A key press, click or scroll confirms immediately.
