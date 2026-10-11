@@ -69,9 +69,6 @@ final class Preferences: ObservableObject {
     /// "I'm reading / in a meeting": don't treat stillness as away until this time.
     @Published var presenceHoldUntil: Date? { didSet { set(presenceHoldUntil, "presenceHoldUntil") } }
 
-    // Bluetooth headset
-    @Published var bluetoothEnabled: Bool { didSet { set(bluetoothEnabled, "bluetoothEnabled") } }
-    @Published var bluetoothAddress: String? { didSet { set(bluetoothAddress, "bluetoothAddress") } }
 
     // Text size (1.0 = system default)
     @Published var textScale: Double { didSet { set(textScale, "textScale") } }
@@ -95,7 +92,14 @@ final class Preferences: ObservableObject {
         readingGraceMinutes = v("readingGraceMinutes", 3.0)
         mediaExtension = v("mediaExtension", true)
         mediaGraceMinutes = v("mediaGraceMinutes", 20)
-        breakResetMinutes = v("breakResetMinutes", 5)
+        // v2: "continuous" means leaving restarts the count — move old 5-minute style
+        // settings to the new 1-minute default once.
+        if !defaults.bool(forKey: "migratedBreakResetV2") {
+            defaults.set(1, forKey: "breakResetMinutes")
+            defaults.set(true, forKey: "migratedBreakResetV2")
+        }
+        let storedBreak: Int = v("breakResetMinutes", 1)
+        breakResetMinutes = [1, 2, 3, 5, 10].contains(storedBreak) ? storedBreak : 1
 
         showInDock = v("showInDock", false)
         showInMenuBar = v("showInMenuBar", true)
@@ -122,8 +126,6 @@ final class Preferences: ObservableObject {
         probeEnabled = v("probeEnabled", true)
         noAskApps = v("noAskApps", [String]())
         presenceHoldUntil = defaults.object(forKey: "presenceHoldUntil") as? Date
-        bluetoothEnabled = v("bluetoothEnabled", false)
-        bluetoothAddress = defaults.string(forKey: "bluetoothAddress")
         textScale = v("textScale", 1.0)
         hasLaunchedBefore = v("hasLaunchedBefore", false)
 

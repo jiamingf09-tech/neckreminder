@@ -112,14 +112,14 @@ struct OverviewView: View {
         let breakMinutes = prefs.breakResetMinutes
         switch controller.state {
         case .active:
-            return tr("检测到键盘或鼠标操作。离开电脑 \(breakMinutes) 分钟以上会自动算作休息并重新计时。",
-                      "Keyboard or mouse activity detected. Being away for \(breakMinutes)+ minutes counts as a break and restarts the timer.")
+            return tr("检测到键盘或鼠标操作。离开电脑 \(breakMinutes) 分钟以上，连续时长就会清零重新计算。",
+                      "Keyboard or mouse activity detected. Leaving for \(breakMinutes)+ min restarts the continuous count.")
         case .passive:
             return tr("暂时没有操作，可能在阅读或观看。这段时间先暂记，等你再次操作时确认；若一直没有操作则视为离开。",
                       "No input for a moment — probably reading or watching. This time is held tentatively and confirmed when you touch the keyboard or mouse again.")
         case .away:
-            return tr("你似乎离开了电脑，计时已暂停。离开满 \(breakMinutes) 分钟即算一次休息。",
-                      "You seem to be away; the timer is paused. \(breakMinutes) minutes away counts as a break.")
+            return tr("你似乎离开了电脑。离开满 \(breakMinutes) 分钟，连续时长会清零重新计算。",
+                      "You seem to be away. After \(breakMinutes) min away the continuous count restarts.")
         }
     }
 

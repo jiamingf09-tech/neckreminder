@@ -6,13 +6,13 @@
 # Signing: ad-hoc by default. Set CODESIGN_IDENTITY to sign with a keychain identity:
 #   "Developer ID Application: …"  → hardened runtime + secure timestamp, ready for notarization
 #   a self-signed certificate name → stable identity, so macOS keeps granted permissions
-#                                    (Bluetooth) across updates (see create-signing-cert.sh)
+#                                    across updates (see create-signing-cert.sh)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 APP_NAME="NeckReminder"
 BUNDLE_ID="${BUNDLE_ID:-io.github.jiamingf09.NeckReminder}"
-VERSION="${VERSION:-0.1.0}"
+VERSION="${VERSION:-2.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 ARCHS="${ARCHS:-arm64 x86_64}"
 IDENTITY="${CODESIGN_IDENTITY:--}"

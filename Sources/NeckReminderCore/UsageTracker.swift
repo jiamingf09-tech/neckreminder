@@ -20,9 +20,6 @@ public struct ActivitySample: Equatable {
     /// Context-specific grace period (from the learned presence model). Overrides the
     /// fixed reading / media grace when set.
     public var graceOverride: TimeInterval?
-    /// When `hardAway` comes from a signal that knows *when* the user left (e.g. their
-    /// AirPods walking out of range), the moment they left.
-    public var awayHintSince: Date?
 
     public init(date: Date,
                 idleSeconds: TimeInterval,
@@ -30,8 +27,7 @@ public struct ActivitySample: Equatable {
                 hardAway: Bool = false,
                 slept: Bool = false,
                 mediaPlaying: Bool = false,
-                graceOverride: TimeInterval? = nil,
-                awayHintSince: Date? = nil) {
+                graceOverride: TimeInterval? = nil) {
         self.date = date
         self.idleSeconds = max(0, idleSeconds)
         self.strongIdleSeconds = max(0, strongIdleSeconds ?? idleSeconds)
@@ -39,7 +35,6 @@ public struct ActivitySample: Equatable {
         self.slept = slept
         self.mediaPlaying = mediaPlaying
         self.graceOverride = graceOverride
-        self.awayHintSince = awayHintSince
     }
 }
 
@@ -132,8 +127,8 @@ public struct GapInfo: Equatable, Codable {
 ///   user is treated as `away` since the moment of their last input.
 /// * Locking the screen, display sleep, screen saver, fast user switching and system
 ///   sleep are hard "away" signals.
-/// * Short absences pause the counter; an absence of at least `breakReset` is a real
-///   break and resets it to zero.
+/// * Any real absence (at least `breakReset`, 1 minute by default) ends the stretch and
+///   resets the counter: the user left, so the next use is a new continuous stretch.
 /// * Coming back requires believable input (see `returnConfirmSamples`).
 public final class UsageTracker {
     public var config: TrackerConfig
@@ -260,11 +255,9 @@ public final class UsageTracker {
         if s.hardAway || s.slept {
             if state != .away {
                 // When the machine slept we were not observing; the absence began at the
-                // previous sample at the latest. Otherwise it began at the last input
-                // (or when an external signal says the user left, if that was later).
-                var since = s.slept ? min(last, previousInput ?? last)
+                // previous sample at the latest. Otherwise it began at the last input.
+                let since = s.slept ? min(last, previousInput ?? last)
                                     : s.date.addingTimeInterval(-s.idleSeconds)
-                if let hint = s.awayHintSince, hint > since, hint <= s.date { since = hint }
                 enterAway(since: since, &update)
             }
             gapHadHardAway = true

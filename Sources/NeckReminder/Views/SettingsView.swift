@@ -8,7 +8,6 @@ struct SettingsView: View {
     @EnvironmentObject var controller: ReminderController
     @EnvironmentObject var notifications: NotificationManager
     @EnvironmentObject var learning: LearningStore
-    @EnvironmentObject var bluetooth: BluetoothProximity
 
     @State private var loginEnabled = LoginItem.isEnabled
     @State private var loginNeedsApproval = LoginItem.needsApproval
@@ -20,7 +19,6 @@ struct SettingsView: View {
             styleSection
             detectionSection
             learningSection
-            bluetoothSection
             DiagnosticsSection()
             appearanceSection
             systemSection
@@ -130,8 +128,8 @@ struct SettingsView: View {
                     }
                 }
             }
-            Picker(tr("离开多久算一次休息（重新计时）", "Away this long counts as a break (timer restarts)"), selection: $prefs.breakResetMinutes) {
-                ForEach([2, 3, 5, 8, 10, 15], id: \.self) { m in
+            Picker(tr("离开多久就重新计算连续时长", "Away this long restarts the continuous count"), selection: $prefs.breakResetMinutes) {
+                ForEach([1, 2, 3, 5, 10], id: \.self) { m in
                     Text(formatMinutes(TimeInterval(m * 60))).tag(m)
                 }
             }
@@ -139,9 +137,9 @@ struct SettingsView: View {
             Text(tr("智能判断", "Presence detection"))
         } footer: {
             Text(tr("""
-            判断规则：只有真实的键盘、鼠标、触控板输入才算“在用电脑”，程序在跑、视频在放本身都不算。短暂没有操作（阅读、思考）的时间会先暂记，等你再次操作时才确认；一直没有操作就视为离开并扣除这段时间。锁屏、屏保、显示器休眠、电脑睡眠会立即视为离开。离开时间达到“休息”阈值就重新计时，短暂离开只暂停计时。从离开状态回来时，单次轻微的鼠标移动（比如碰到桌子）不会被当作回来。
+            判断规则：只有真实的键盘、鼠标、触控板输入才算“在用电脑”，程序在跑、视频在放本身都不算。短暂没有操作（阅读、思考）的时间会先暂记，等你再次操作时才确认；一直没有操作就视为离开并扣除这段时间。锁屏、屏保、显示器休眠、电脑睡眠会立即视为离开。只要确认你离开了电脑（默认 1 分钟以上，锁屏也算），连续时长就会清零重新计算。从离开状态回来时，单次轻微的鼠标移动（比如碰到桌子）不会被当作回来。
             """, """
-            Only real keyboard, mouse and trackpad input counts as using the computer — a running build or a playing video doesn't. Short stillness (reading, thinking) is held tentatively and confirmed when you touch the input again; if you never do, you're treated as away and that time is removed. Locking the screen, screen saver, display sleep and system sleep mean away immediately. Being away for the break threshold restarts the timer; shorter absences only pause it. A single small mouse nudge (bumping the desk) doesn't count as coming back.
+            Only real keyboard, mouse and trackpad input counts as using the computer — a running build or a playing video doesn't. Short stillness (reading, thinking) is held tentatively and confirmed when you touch the input again; if you never do, you're treated as away and that time is removed. Locking the screen, screen saver, display sleep and system sleep mean away immediately. Once you've actually left (1 minute by default, locking the screen counts), the continuous count restarts. A single small mouse nudge (bumping the desk) doesn't count as coming back.
             """))
         }
     }
@@ -173,46 +171,6 @@ struct SettingsView: View {
             Text(tr("问题只在判断拿不准时出现，出现在右下角，不抢键盘焦点，20 秒后自动消失。你的回答会立即修正刚才的计时，并在本机训练一个小模型：每个应用、是否在放视频 / 画中画 / 音乐、是否在通话都会分别学习。演示或全屏时不会弹出，可以之后在「回顾」里确认。",
                     "Questions appear only when detection is unsure — bottom-right, never stealing keyboard focus, gone after 20 s. Answers fix the timer immediately and train a small on-device model per app and per situation (video, picture in picture, music, calls). Nothing pops up while you present or are full screen; confirm those later in Review."))
         }
-    }
-
-    private var bluetoothSection: some View {
-        Section {
-            Toggle(tr("用蓝牙耳机判断离开", "Use a Bluetooth headset to detect leaving"), isOn: $prefs.bluetoothEnabled)
-                .onChange(of: prefs.bluetoothEnabled) { on in if on { bluetooth.refreshPairedDevices() } }
-            if prefs.bluetoothEnabled {
-                HStack {
-                    Picker(tr("设备", "Device"), selection: $prefs.bluetoothAddress) {
-                        Text(tr("请选择…", "Choose…")).tag(String?.none)
-                        ForEach(bluetooth.pairedDevices) { d in
-                            Text(d.isAudio ? "🎧 \(d.name)" : d.name).tag(String?.some(d.id))
-                        }
-                    }
-                    Button {
-                        bluetooth.refreshPairedDevices()
-                    } label: { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.borderless)
-                    .help(tr("刷新设备列表", "Refresh devices"))
-                }
-                if prefs.bluetoothAddress != nil {
-                    HStack {
-                        Text(bluetooth.connected
-                             ? tr("已连接", "Connected") + (bluetooth.rssi.map { " · \(tr("信号", "signal")) \($0) dBm" } ?? "")
-                             : tr("未连接", "Not connected"))
-                        Spacer()
-                    }
-                    .foregroundColor(.secondary)
-                    if let event = bluetooth.lastEvent {
-                        Text(event).scaledFont(11).foregroundColor(.secondary)
-                    }
-                }
-            }
-        } header: {
-            Text(tr("蓝牙耳机（AirPods 等）", "Bluetooth headset (AirPods etc.)"))
-        } footer: {
-            Text(tr("戴着耳机走远、信号逐渐减弱后断开，会被直接判定为离开（从信号开始减弱时算起）。断开前信号还很强的情况——放回耳机盒、被 iPhone 接走、手动断开——不作为离开依据。断开后只要电脑上还有操作，也不会算离开。iPhone 和 Apple Watch 的蓝牙地址会随机变化，无法使用。首次开启时 macOS 会请求蓝牙权限。",
-                    "If the headset fades out and then disconnects as you walk away, you're counted as away from when the signal started fading. Disconnects with a strong signal (back in the case, taken by the iPhone, disconnected by hand) are ignored, and so is any disconnect while the computer is still being used. iPhone and Apple Watch use rotating Bluetooth addresses and can't be used. macOS asks for Bluetooth permission the first time."))
-        }
-        .onAppear { if prefs.bluetoothEnabled { bluetooth.refreshPairedDevices() } }
     }
 
     private var appearanceSection: some View {
@@ -271,8 +229,8 @@ struct SettingsView: View {
         } header: {
             Text(tr("系统", "System"))
         } footer: {
-            Text(tr("NeckReminder 只需要“通知”权限（开启蓝牙耳机判断时另需“蓝牙”权限）。不需要辅助功能、输入监控、屏幕录制、摄像头或麦克风权限。只在你打开示范视频时访问 YouTube，其余不联网。",
-                    "NeckReminder only asks for notification permission (plus Bluetooth if you turn on the headset option). No Accessibility, Input Monitoring, Screen Recording, camera or microphone access. The network is used only when you open a demo video."))
+            Text(tr("NeckReminder 只需要“通知”权限。不需要辅助功能、输入监控、屏幕录制、摄像头或麦克风权限。只在你打开示范视频时访问 YouTube，其余不联网。",
+                    "NeckReminder only asks for notification permission. No Accessibility, Input Monitoring, Screen Recording, camera or microphone access. The network is used only when you open a demo video."))
         }
     }
 

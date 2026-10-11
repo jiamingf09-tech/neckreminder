@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Creates a free, self-signed code-signing certificate for CI builds.
 #
-# Why: macOS remembers privacy permissions (e.g. Bluetooth) per *signing identity*.
+# Why: macOS remembers privacy permissions per *signing identity*.
 # Ad-hoc signed builds get a new identity on every build, so after each update macOS
 # forgets the permission. Signing every build with the same self-signed certificate keeps
 # it stable. (Gatekeeper still treats the app as from an unidentified developer — that
@@ -54,5 +54,5 @@ Add these GitHub repository secrets (Settings › Secrets and variables › Acti
 
 Keep cert.p12 and the password private (a password manager is a good place) and do not
 commit this folder. If you lose them, create a new certificate — macOS will then ask
-for the Bluetooth permission once more.
+for permissions once more.
 MSG

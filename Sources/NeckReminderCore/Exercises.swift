@@ -168,6 +168,19 @@ public enum ExerciseLibrary {
         "jawRelax": [.calm, .finish],
         "standingExtension": [.movement],
         "marching": [.movement, .warmup],
+        "chinTuckRotation": [.neckMobility, .neckStrength],
+        "trapMassage": [.neckStretch, .calm],
+        "scapCircles": [.shoulder, .warmup],
+        "externalRotation": [.shoulder],
+        "behindBackClasp": [.upperBack],
+        "deskThoracic": [.upperBack],
+        "wallPec": [.upperBack],
+        "scapPushPull": [.upperBack],
+        "boxBreathing": [.calm, .warmup],
+        "wristCircles": [.finish],
+        "nearFar": [.finish],
+        "standingSideBend": [.movement],
+        "chairSquat": [.movement],
     ]
 
     static let defaultSeconds: [String: Int] = [
@@ -717,6 +730,181 @@ public enum ExerciseLibrary {
             dosage: LText("1–2 分钟", "1–2 min"),
             caution: nil, bilateral: false, needsStanding: true,
             youtubeQuery: "desk break march in place calf raises"),
+
+        // MARK: Round 3
+
+        Exercise(
+            id: "chinTuckRotation", symbol: "arrow.uturn.left.circle", category: .neck,
+            name: LText("收下巴转头", "Chin tuck + turn"),
+            summary: LText("先把头放回正确位置再转头，转动更顺、更不容易代偿。", "Set the head back first, then turn — smoother rotation without compensating."),
+            howTo: [
+                LText("做一次收下巴，保持住。", "Do a chin tuck and keep it."),
+                LText("保持收下巴的同时，慢慢向左转头，停 2 秒。", "Keeping the tuck, turn slowly to the left; pause 2 s."),
+                LText("回到中间，再向右。", "Back to centre, then right."),
+            ],
+            dosage: LText("左右各 5 次", "5 each side"),
+            caution: nil, bilateral: false, needsStanding: false,
+            youtubeQuery: "chin tuck with rotation exercise"),
+
+        Exercise(
+            id: "trapMassage", symbol: "hand.tap", category: .neck,
+            name: LText("斜方肌自我按摩", "Upper-trap self-massage"),
+            summary: LText("用手捏揉肩颈交界处最酸的那块肌肉，放松效果立竿见影。", "Knead the sore spot where neck meets shoulder — instant relief."),
+            howTo: [
+                LText("右手越过胸前，捏住左侧肩颈交界处的肌肉。", "Reach across with the right hand and grip the muscle where the left neck meets the shoulder."),
+                LText("慢慢揉捏，同时让头轻轻倒向右侧。", "Knead slowly while letting your head tilt gently to the right."),
+                LText("找到酸痛点按住 10 秒，再换另一侧。", "Hold a tender spot for 10 s, then switch sides."),
+            ],
+            dosage: LText("每侧 30 秒", "30 s per side"),
+            caution: LText("力度以舒服为准，不要用力按压颈部前侧。", "Comfortable pressure only; never press the front of the neck."),
+            bilateral: true, needsStanding: false,
+            youtubeQuery: "upper trapezius self massage"),
+
+        Exercise(
+            id: "scapCircles", symbol: "circle.circle", category: .shoulders,
+            name: LText("肩胛骨画圈", "Shoulder-blade circles"),
+            summary: LText("比肩部绕环更细致：专注让肩胛骨在背上滑动。", "Finer than shoulder rolls: focus on gliding the shoulder blades over your back."),
+            howTo: [
+                LText("双手放在肩上，手肘朝前。", "Fingertips on your shoulders, elbows forward."),
+                LText("用手肘画大圈，感受肩胛骨上提、后收、下沉、前伸。", "Draw big circles with the elbows, feeling the blades lift, squeeze, drop and spread."),
+                LText("向后 8 圈，向前 8 圈。", "8 backwards, 8 forwards."),
+            ],
+            dosage: LText("前后各 8 圈", "8 each way"),
+            caution: nil, bilateral: false, needsStanding: false,
+            youtubeQuery: "scapular circles elbow circles exercise"),
+
+        Exercise(
+            id: "externalRotation", symbol: "arrow.left.and.right.square", category: .shoulders,
+            name: LText("肩外旋", "Shoulder external rotation"),
+            summary: LText("强化肩袖，把内扣的肩膀拉回来——用鼠标的人尤其需要。", "Strengthens the rotator cuff and un-rolls the shoulders — mouse users need it most."),
+            howTo: [
+                LText("手肘贴住身体两侧，屈肘 90°，掌心相对。", "Elbows tucked at your sides, bent 90°, palms facing each other."),
+                LText("前臂向外打开，手肘不离开身体，肩胛骨轻轻后收。", "Rotate the forearms outwards without lifting the elbows; squeeze the blades lightly."),
+                LText("停 2 秒，慢慢回来。", "Pause 2 s, return slowly."),
+            ],
+            dosage: LText("12–15 次", "12–15 reps"),
+            caution: nil, bilateral: false, needsStanding: false,
+            youtubeQuery: "shoulder external rotation no equipment"),
+
+        Exercise(
+            id: "behindBackClasp", symbol: "hands.clap", category: .upperBack,
+            name: LText("背后握手扩胸", "Behind-the-back clasp"),
+            summary: LText("没有门框也能做的扩胸，一下就能把含着的胸打开。", "A chest opener that needs no doorway."),
+            howTo: [
+                LText("坐在椅子前半部分，双手在背后十指相扣。", "Sit near the front of the chair and clasp your hands behind your back."),
+                LText("手臂伸直，向后下方拉，同时挺胸。", "Straighten the arms and draw them down and back, lifting the chest."),
+                LText("下巴微收，保持并深呼吸。", "Keep the chin slightly tucked; hold and breathe."),
+            ],
+            dosage: LText("20–30 秒，2 次", "20–30 s, twice"),
+            caution: nil, bilateral: false, needsStanding: false,
+            youtubeQuery: "hands clasped behind back chest stretch"),
+
+        Exercise(
+            id: "deskThoracic", symbol: "table.furniture", category: .upperBack,
+            name: LText("桌面胸椎下压", "Desk thoracic stretch"),
+            summary: LText("利用桌子把上背和腋下一起拉开，久坐后的“救命”动作。", "Uses the desk to open the upper back and armpits — a lifesaver after long sitting."),
+            howTo: [
+                LText("面对桌子站立，双手放在桌沿，后退一步。", "Stand facing the desk, hands on the edge, step back."),
+                LText("屈髋，让上身和手臂成一条直线，胸口向地面下沉。", "Hinge at the hips so the arms and back line up; let the chest sink towards the floor."),
+                LText("头放在两臂之间，保持并呼吸。", "Head between the arms; hold and breathe."),
+            ],
+            dosage: LText("30 秒，2 次", "30 s, twice"),
+            caution: LText("确认桌子稳固。", "Make sure the desk is stable."),
+            bilateral: false, needsStanding: true,
+            youtubeQuery: "desk thoracic extension stretch standing"),
+
+        Exercise(
+            id: "wallPec", symbol: "rectangle.portrait.and.arrow.right", category: .upperBack,
+            name: LText("单臂靠墙扩胸", "Single-arm wall chest stretch"),
+            summary: LText("一侧一侧地拉开胸肌，比门框拉伸更容易控制力度。", "Opens one side at a time — easier to control than the doorway stretch."),
+            howTo: [
+                LText("侧对墙站，手臂抬到肩高，手掌和前臂贴墙。", "Stand side-on to a wall, arm at shoulder height, palm and forearm on the wall."),
+                LText("身体慢慢转离墙面，直到胸前有拉伸感。", "Slowly turn your body away until the chest stretches."),
+                LText("保持并呼吸，肩膀不要耸起。", "Hold and breathe; keep the shoulder down."),
+            ],
+            dosage: LText("每侧 20–30 秒", "20–30 s per side"),
+            caution: nil, bilateral: true, needsStanding: true,
+            youtubeQuery: "single arm wall pec stretch"),
+
+        Exercise(
+            id: "scapPushPull", symbol: "arrow.left.arrow.right.square", category: .upperBack,
+            name: LText("肩胛前推后收", "Scapular push & pull"),
+            summary: LText("让肩胛骨完整地前后滑动，激活前锯肌和中斜方肌。", "Glides the shoulder blades fully forwards and back, waking the serratus and middle traps."),
+            howTo: [
+                LText("双臂向前平举，手肘伸直。", "Reach both arms straight forward."),
+                LText("手臂不弯，只让肩胛骨向前推（背部变圆）。", "Without bending the elbows, push the blades forward (back rounds)."),
+                LText("再把肩胛骨向后夹回，胸口打开。", "Then pull the blades back together, chest open."),
+            ],
+            dosage: LText("12 次", "12 reps"),
+            caution: nil, bilateral: false, needsStanding: false,
+            youtubeQuery: "scapular protraction retraction exercise"),
+
+        Exercise(
+            id: "boxBreathing", symbol: "square", category: .breathing,
+            name: LText("方块呼吸", "Box breathing"),
+            summary: LText("吸—停—呼—停各 4 秒，快速让紧绷的神经系统平静下来。", "In–hold–out–hold for 4 s each: calms a wound-up nervous system fast."),
+            howTo: [
+                LText("吸气 4 秒。", "Breathe in for 4 s."),
+                LText("屏住 4 秒，肩膀放松。", "Hold for 4 s, shoulders soft."),
+                LText("呼气 4 秒，再屏住 4 秒。", "Breathe out for 4 s, hold for 4 s."),
+                LText("重复 4–6 轮。", "Repeat 4–6 rounds."),
+            ],
+            dosage: LText("4–6 轮", "4–6 rounds"),
+            caution: nil, bilateral: false, needsStanding: false,
+            youtubeQuery: "box breathing 4 4 4 4"),
+
+        Exercise(
+            id: "wristCircles", symbol: "arrow.triangle.2.circlepath", category: .extras,
+            name: LText("手腕画圈", "Wrist circles"),
+            summary: LText("给一直悬着打字的手腕换个方向活动。", "Moves wrists that have been held still over the keyboard."),
+            howTo: [
+                LText("双手握拳，手臂向前伸。", "Make loose fists, arms forward."),
+                LText("手腕慢慢顺时针画圈 10 次。", "Circle the wrists slowly clockwise 10 times."),
+                LText("再逆时针 10 次，最后甩甩手。", "Then 10 anticlockwise, and shake out."),
+            ],
+            dosage: LText("每个方向 10 圈", "10 each way"),
+            caution: nil, bilateral: false, needsStanding: false,
+            youtubeQuery: "wrist circles warm up"),
+
+        Exercise(
+            id: "nearFar", symbol: "binoculars", category: .extras,
+            name: LText("远近对焦", "Near-far focus"),
+            summary: LText("交替看近处和远处，锻炼睫状肌，缓解眼睛疲劳带来的探头。", "Alternate near and far to exercise the focusing muscles and ease the eye strain that makes you crane."),
+            howTo: [
+                LText("竖起一根手指，放在眼前 25 厘米处，盯住 5 秒。", "Hold a finger 25 cm in front of you and focus on it for 5 s."),
+                LText("再看向窗外或房间最远处 5 秒。", "Then look out of a window or across the room for 5 s."),
+                LText("来回交替，保持眨眼。", "Alternate, remembering to blink."),
+            ],
+            dosage: LText("10 次交替", "10 switches"),
+            caution: nil, bilateral: false, needsStanding: false,
+            youtubeQuery: "near far focus eye exercise"),
+
+        Exercise(
+            id: "standingSideBend", symbol: "figure.flexibility", category: .extras,
+            name: LText("站立侧弯", "Standing side bend"),
+            summary: LText("站起来拉长身体侧面，顺便让久坐的髋部活动一下。", "Stand up, lengthen the side body and wake up sitting hips."),
+            howTo: [
+                LText("站立，双脚与髋同宽，一侧手臂举过头顶。", "Stand hip-width, one arm overhead."),
+                LText("身体向对侧弯，髋部轻轻推向另一侧。", "Bend to the opposite side, pushing the hip gently the other way."),
+                LText("保持并呼吸，感受身体侧面被拉长。", "Hold and breathe into the long side."),
+            ],
+            dosage: LText("每侧 20–30 秒", "20–30 s per side"),
+            caution: nil, bilateral: true, needsStanding: true,
+            youtubeQuery: "standing side bend stretch"),
+
+        Exercise(
+            id: "chairSquat", symbol: "chair.lounge", category: .extras,
+            name: LText("椅子深蹲", "Chair squats"),
+            summary: LText("最简单的全身唤醒：坐下、站起，血液循环一下就上来了。", "The simplest whole-body wake-up: sit, stand, repeat."),
+            howTo: [
+                LText("站在椅子前，双脚与肩同宽。", "Stand in front of your chair, feet shoulder-width."),
+                LText("臀部向后坐，轻碰椅面即站起。", "Sit back until you lightly touch the seat, then stand."),
+                LText("保持背部挺直、胸口向前。", "Keep your back straight and chest forward."),
+            ],
+            dosage: LText("10–15 次", "10–15 reps"),
+            caution: LText("膝盖不适时减小幅度。", "Go shallower if your knees complain."),
+            bilateral: false, needsStanding: true,
+            youtubeQuery: "chair squats desk exercise"),
     ]
 
     public static func exercise(_ id: String) -> Exercise {

@@ -270,7 +270,10 @@ struct GuideExtrasView: View {
 struct RoutinePlayerView: View {
     @EnvironmentObject var session: RelaxSession
     @EnvironmentObject var prefs: Preferences
+    @EnvironmentObject var achievements: AchievementStore
+    @EnvironmentObject var navigation: Navigation
     @State private var video: VideoLink?
+    @State private var celebrate = 0
 
     var body: some View {
         if session.finished {
@@ -459,28 +462,99 @@ struct RoutinePlayerView: View {
     }
 
     private var finishedView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "party.popper.fill")
-                .scaledFont(64)
-                .foregroundStyle(Palette.gradient)
-            Text(tr("完成！你的颈椎会感谢你", "Done! Your neck says thanks"))
-                .scaledFont(28, weight: .bold, design: .rounded)
-            if let routine = session.routine {
-                Text(tr("完成了「\(routine.title.text)」（\(routine.steps.count) 个动作，\(formatClock(TimeInterval(routine.totalSeconds)))），计时已重新开始。",
-                        "You finished “\(routine.title.text)” (\(routine.steps.count) steps, \(formatClock(TimeInterval(routine.totalSeconds)))). The timer has restarted."))
-                    .foregroundColor(.secondary)
-            }
-            HStack {
+        ZStack {
+            FireworksLayer(trigger: celebrate)
+                .allowsHitTesting(false)
+            VStack(spacing: 14) {
+                Image(systemName: "party.popper.fill")
+                    .scaledFont(64)
+                    .foregroundStyle(LinearGradient(colors: [.pink, .orange, .yellow], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .scaleEffect(celebrate > 0 ? 1 : 0.4)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.55), value: celebrate)
+                Text(tr("完成！你的颈椎会感谢你", "Done! Your neck says thanks"))
+                    .scaledFont(28, weight: .bold, design: .rounded)
                 if let routine = session.routine {
-                    Button(tr("再来一次", "Again")) { session.start(routine) }
+                    Text(tr("完成了「\(routine.title.text)」（\(routine.steps.count) 个动作，\(formatClock(TimeInterval(routine.totalSeconds)))），连续时长已清零。",
+                            "You finished “\(routine.title.text)” (\(routine.steps.count) steps, \(formatClock(TimeInterval(routine.totalSeconds)))). The continuous count has restarted."))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
                 }
-                Button(tr("返回", "Back")) { session.close() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Palette.accent)
+                if let r = achievements.lastResult {
+                    rewardRow(r)
+                    levelBar
+                    if !r.newAchievements.isEmpty {
+                        VStack(spacing: 8) {
+                            Text(tr("新解锁", "Unlocked")).scaledFont(12, weight: .semibold).foregroundColor(.secondary)
+                            HStack(spacing: 10) {
+                                ForEach(r.newAchievements) { a in
+                                    HStack(spacing: 6) {
+                                        Image(systemName: a.symbol)
+                                            .foregroundColor(.white)
+                                            .frame(width: 26, height: 26)
+                                            .background(Circle().fill(TierStyle.gradient(a.tier)))
+                                        Text(a.title.text).scaledFont(12, weight: .semibold)
+                                    }
+                                    .padding(.horizontal, 10).padding(.vertical, 6)
+                                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+                                }
+                            }
+                        }
+                    }
+                }
+                HStack {
+                    if let routine = session.routine {
+                        Button(tr("再来一次", "Again")) { session.start(routine) }
+                    }
+                    Button(tr("查看成就", "Achievements")) {
+                        session.close()
+                        navigation.section = .achievements
+                    }
+                    Button(tr("返回", "Back")) { session.close() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Palette.accent)
+                }
+                .controlSize(.large)
+                .padding(.top, 4)
             }
-            .controlSize(.large)
+            .padding(40)
         }
-        .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { celebrate += 1 }
+    }
+
+    private func rewardRow(_ r: AchievementStore.SessionResult) -> some View {
+        HStack(spacing: 10) {
+            rewardChip("sparkles", "+\(r.xp) XP", .purple)
+            if r.timely { rewardChip("bolt.fill", tr("及时响应 +5", "On time +5"), .orange) }
+            rewardChip("flame.fill", tr("连续 \(r.streak) 天", "\(r.streak)-day streak"), .red)
+            if let level = r.leveledUpTo {
+                rewardChip("arrow.up.circle.fill", tr("升到 Lv.\(level)", "Level \(level)!"), .green)
+            }
+        }
+    }
+
+    private func rewardChip(_ symbol: String, _ text: String, _ color: Color) -> some View {
+        Label(text, systemImage: symbol)
+            .scaledFont(13, weight: .semibold)
+            .foregroundColor(color)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Capsule().fill(color.opacity(0.12)))
+    }
+
+    private var levelBar: some View {
+        let xp = achievements.log.xp
+        let level = Achievements.level(forXP: xp)
+        let floor = Achievements.threshold(level)
+        let next = Achievements.threshold(level + 1)
+        return VStack(spacing: 4) {
+            HStack {
+                Text("Lv.\(level) \(Achievements.levelTitle(level).text)").scaledFont(12, weight: .semibold)
+                Spacer()
+                Text("\(xp - floor) / \(next - floor) XP").scaledFont(11).monospacedDigit().foregroundColor(.secondary)
+            }
+            ProgressView(value: Double(xp - floor), total: Double(max(1, next - floor)))
+                .tint(.purple)
+        }
+        .frame(maxWidth: 380)
     }
 }

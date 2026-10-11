@@ -83,8 +83,7 @@ final class TrackerGapTests: XCTestCase {
     let t0 = Date(timeIntervalSince1970: 1_700_000_000)
 
     func sample(_ t: TimeInterval, idle: TimeInterval, grace: TimeInterval? = nil, hardAway: Bool = false) -> ActivitySample {
-        ActivitySample(date: t0.addingTimeInterval(t), idleSeconds: idle, graceOverride: grace,
-                       awayHintSince: nil).with(hardAway: hardAway)
+        ActivitySample(date: t0.addingTimeInterval(t), idleSeconds: idle, graceOverride: grace).with(hardAway: hardAway)
     }
 
     func feed(_ tracker: UsageTracker, _ from: TimeInterval, _ to: TimeInterval, idle: (TimeInterval) -> TimeInterval,
@@ -100,9 +99,20 @@ final class TrackerGapTests: XCTestCase {
         guard let gap = updates.compactMap(\.endedGap).first else { return XCTFail("no gap reported") }
         XCTAssertTrue(gap.countedAsPresent)
         XCTAssertEqual(gap.duration, 154, accuracy: 6)
-        let before = tracker.continuousUse
-        XCTAssertFalse(tracker.debitGap(gap))
-        XCTAssertEqual(tracker.continuousUse, before - gap.duration, accuracy: 0.001)
+        // "I was away" for 2.5 minutes: the stretch restarts from when they came back.
+        XCTAssertTrue(tracker.debitGap(gap))
+        XCTAssertEqual(tracker.continuousUse, 6, accuracy: 1)
+        // With a longer threshold the same answer only removes the gap.
+        var config = TrackerConfig()
+        config.breakReset = 300
+        let lenient = UsageTracker(config: config)
+        _ = feed(lenient, 0, 600, idle: { _ in 1 })
+        _ = feed(lenient, 605, 750, idle: { $0 - 600 })
+        let u2 = feed(lenient, 755, 760, idle: { _ in 1 })
+        guard let gap2 = u2.compactMap(\.endedGap).first else { return XCTFail("no gap reported") }
+        let before = lenient.continuousUse
+        XCTAssertFalse(lenient.debitGap(gap2))
+        XCTAssertEqual(lenient.continuousUse, before - gap2.duration, accuracy: 0.001)
     }
 
     func testAwayGapCanBeCreditedEvenAfterReset() {
@@ -148,14 +158,6 @@ final class TrackerGapTests: XCTestCase {
         XCTAssertEqual(tracker.state, .active)
     }
 
-    func testAwayHintMovesStartOfAbsence() {
-        let tracker = UsageTracker()
-        _ = feed(tracker, 0, 600, idle: { _ in 1 })
-        let hint = t0.addingTimeInterval(640)
-        tracker.ingest(ActivitySample(date: t0.addingTimeInterval(700), idleSeconds: 100, hardAway: true, awayHintSince: hint))
-        XCTAssertEqual(tracker.state, .away)
-        XCTAssertEqual(tracker.awaySince, hint)
-    }
 }
 
 final class TimelineTests: XCTestCase {
@@ -242,10 +244,52 @@ final class RoutineGeneratorTests: XCTestCase {
     }
 
     func testLibraryIsRichAndEveryExerciseHasARole() {
-        XCTAssertGreaterThanOrEqual(ExerciseLibrary.all.count, 35)
+        XCTAssertGreaterThanOrEqual(ExerciseLibrary.all.count, 50)
         for e in ExerciseLibrary.all {
             XCTAssertFalse(e.roles.isEmpty, "\(e.id) has no role")
             XCTAssertFalse(e.howTo.isEmpty)
         }
+    }
+}
+
+final class AchievementTests: XCTestCase {
+    var calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+
+    func testStreaks() {
+        var log = ActivityLog()
+        log.sessionDays = ["2026-10-01": 1, "2026-10-02": 2, "2026-10-03": 1, "2026-10-05": 1, "2026-10-06": 1]
+        let today = calendar.date(from: DateComponents(year: 2026, month: 10, day: 6, hour: 9))!
+        XCTAssertEqual(log.currentStreak(today: today, calendar: calendar), 2)
+        XCTAssertEqual(log.longestStreak(calendar: calendar), 3)
+        // No session yet today: yesterday's streak still counts.
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+        XCTAssertEqual(log.currentStreak(today: tomorrow, calendar: calendar), 2)
+        XCTAssertEqual(log.bestDay, 2)
+    }
+
+    func testEarnedAndProgress() {
+        var log = ActivityLog()
+        log.completedSessions = 10
+        log.timelyResponses = 1
+        log.relaxSeconds = 45 * 60
+        let ctx = AchievementContext(log: log, distinctExercises: 12, combos: 1)
+        let ids = Set(Achievements.earned(ctx).map(\.id))
+        XCTAssertTrue(ids.isSuperset(of: ["firstStep", "tenSessions", "timely1", "creator"]))
+        XCTAssertFalse(ids.contains("fiftySessions"))
+        let minutes60 = Achievements.all.first { $0.id == "minutes60" }!
+        XCTAssertEqual(Achievements.progress(minutes60, ctx), 0.75, accuracy: 0.001)
+        XCTAssertEqual(Set(Achievements.all.map(\.id)).count, Achievements.all.count)
+    }
+
+    func testLevels() {
+        XCTAssertEqual(Achievements.level(forXP: 0), 1)
+        XCTAssertEqual(Achievements.level(forXP: 49), 1)
+        XCTAssertEqual(Achievements.level(forXP: 50), 2)
+        XCTAssertEqual(Achievements.level(forXP: 150), 3)
+        XCTAssertEqual(Achievements.xp(activeSeconds: 300, timely: true), 20)
     }
 }

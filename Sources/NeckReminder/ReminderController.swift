@@ -23,7 +23,6 @@ final class ReminderController: NSObject, ObservableObject {
     let overlay: OverlayController
     let learning: LearningStore
     let feedback: FeedbackPanelController
-    let bluetooth: BluetoothProximity
     weak var session: RelaxSession?
 
     /// Opens the main window on the relax guide.
@@ -54,6 +53,10 @@ final class ReminderController: NSObject, ObservableObject {
 
     // Relax session
     private var relaxStartedAt: Date?
+    private var lastReminderAt: Date?
+    private var relaxIsTimely = false
+    /// A relax session was completed; `timely` = started within 5 minutes of a reminder.
+    var onRelaxCompleted: ((_ activeTime: TimeInterval, _ timely: Bool) -> Void)?
     private var guardViolation = 0.0
 
     static let sampleInterval: TimeInterval = 5
@@ -64,7 +67,6 @@ final class ReminderController: NSObject, ObservableObject {
         self.notifications = notifications
         self.overlay = OverlayController()
         self.feedback = FeedbackPanelController()
-        self.bluetooth = BluetoothProximity()
         self.monitor = ActivityMonitor()
         self.learning = LearningStore(readingGrace: prefs.readingGraceMinutes * 60,
                                       mediaGrace: prefs.mediaExtension ? Double(prefs.mediaGraceMinutes) * 60 : 0)
@@ -73,7 +75,6 @@ final class ReminderController: NSObject, ObservableObject {
                                      repeatInterval: Double(prefs.repeatMinutes) * 60)
         super.init()
 
-        bluetooth.address = prefs.bluetoothEnabled ? prefs.bluetoothAddress : nil
         notifications.onAction = { [weak self] action in self?.handle(action) }
         feedback.onAnswer = { [weak self] id, label in self?.answer(id, label) }
         feedback.onNeverAskApp = { [weak self] id in self?.neverAsk(for: id) }
@@ -115,16 +116,6 @@ final class ReminderController: NSObject, ObservableObject {
         }
         let dt = lastTick.map { now.timeIntervalSince($0) } ?? Self.sampleInterval
         let freshInput = sample.idleSeconds <= dt + 0.5
-
-        // Bluetooth headset walked out of range → away since then, unless there was input after.
-        if prefs.bluetoothEnabled {
-            bluetooth.poll(now: now)
-            if freshInput { bluetooth.userIsBack() }
-            if let since = bluetooth.walkedAwaySince, now.addingTimeInterval(-sample.idleSeconds) <= since {
-                sample.hardAway = true
-                sample.awayHintSince = since
-            }
-        }
 
         // Context of the current silence (what was going on while the user was quiet).
         let live = snap.context
@@ -377,6 +368,7 @@ final class ReminderController: NSObject, ObservableObject {
     func fire(preview: Bool = false) {
         let use = tracker.continuousUse
         if !preview {
+            lastReminderAt = Date()
             policy.markFired(use: use)
             stats.update { $0.reminders += 1 }
         }
@@ -439,6 +431,8 @@ final class ReminderController: NSObject, ObservableObject {
     func relaxSessionStarted() {
         isRelaxing = true
         relaxStartedAt = Date()
+        relaxIsTimely = lastReminderAt.map { Date().timeIntervalSince($0) <= 5 * 60 } ?? false
+        lastReminderAt = nil
         tracker.suspend()
         lastEpisodeCorrectable = false
         overlay.dismiss()
@@ -476,6 +470,7 @@ final class ReminderController: NSObject, ObservableObject {
         tracker.resume(at: now)
         lastTick = now
         publish()
+        if completed { onRelaxCompleted?(activeTime, relaxIsTimely) }
     }
 
     /// While a routine runs, typing or clicking in *another* app means the user went back to
@@ -586,8 +581,6 @@ final class ReminderController: NSObject, ObservableObject {
         if interval != policy.interval || repeatInterval != policy.repeatInterval {
             policy.updateIntervals(interval: interval, repeatInterval: repeatInterval, use: tracker.continuousUse)
         }
-        let address = prefs.bluetoothEnabled ? prefs.bluetoothAddress : nil
-        if bluetooth.address != address { bluetooth.address = address }
         publish()
         onTick?()
     }

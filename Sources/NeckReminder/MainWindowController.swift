@@ -3,12 +3,13 @@ import SwiftUI
 import NeckReminderCore
 
 enum AppSection: String, CaseIterable, Identifiable, Hashable {
-    case overview, review, relax, library, schedule, settings, about
+    case overview, achievements, review, relax, library, schedule, settings, about
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .overview: return tr("概览", "Overview")
+        case .achievements: return tr("成就", "Achievements")
         case .review: return tr("回顾", "Review")
         case .relax: return tr("放松指南", "Relax")
         case .library: return tr("动作库", "Exercises")
@@ -21,6 +22,7 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
     var symbol: String {
         switch self {
         case .overview: return "speedometer"
+        case .achievements: return "trophy"
         case .review: return "clock.arrow.circlepath"
         case .relax: return "figure.mind.and.body"
         case .library: return "list.bullet.rectangle"

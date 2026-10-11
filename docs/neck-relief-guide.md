@@ -1,6 +1,6 @@
 # 颈椎舒缓指南
 
-> 本文与应用内“放松指南 / 动作库”内容一致（由 `Sources/NeckReminderCore/Exercises.swift` 生成），共 38 个动作。动作选择参考了物理治疗师针对久坐办公人群的常用处方，以及 YouTube 上流行的 *neck pain relief exercises* 系列视频（Bob & Brad、Ask Doctor Jo、Yoga With Adriene、ATHLEAN-X 等）。
+> 本文与应用内“放松指南 / 动作库”内容一致（由 `Sources/NeckReminderCore/Exercises.swift` 生成），共 51 个动作。动作选择参考了物理治疗师针对久坐办公人群的常用处方，以及 YouTube 上流行的 *neck pain relief exercises* 系列视频（Bob & Brad、Ask Doctor Jo、Yoga With Adriene、ATHLEAN-X 等）。
 
 **安全第一：** 本指南用于日常保健，不能替代医疗建议。所有动作都应在无痛范围内进行。出现手臂放射痛、麻木或无力，头晕、恶心，外伤后颈痛，或疼痛持续加重、夜间痛时，请停止练习并就医。
 
@@ -11,6 +11,7 @@
 - **我的组合**：在动作库里把喜欢的动作“加入组合”，自定义时长和顺序；也可以新建自己的动作（可以以库中动作为模板）。
 - **单个练习**：动作库里每个动作都可以直接“练习”。
 - 每个动作开始前有 5–15 秒（默认 8 秒）的准备时间，先看清楚怎么做；语音播报默认关闭，跟练时可随时开关。
+- 完成后获得经验值、连续打卡和成就，及时响应提醒还有额外奖励。
 
 ## 经典方案
 
@@ -151,6 +152,18 @@
 
 - **剂量：** 30–60 秒
 - **视频示范：** [YouTube 搜索 “jaw tension release massage”](https://www.youtube.com/results?search_query=jaw+tension+release+massage)
+
+#### 方块呼吸
+
+吸—停—呼—停各 4 秒，快速让紧绷的神经系统平静下来。
+
+1. 吸气 4 秒。
+2. 屏住 4 秒，肩膀放松。
+3. 呼气 4 秒，再屏住 4 秒。
+4. 重复 4–6 轮。
+
+- **剂量：** 4–6 轮
+- **视频示范：** [YouTube 搜索 “box breathing 4 4 4 4”](https://www.youtube.com/results?search_query=box+breathing+4+4+4+4)
 
 ### 颈部
 
@@ -302,6 +315,29 @@
 - **注意：** 只在舒适范围内；出现头晕、手臂麻木请停止。
 - **视频示范：** [YouTube 搜索 “gentle neck extension stretch”](https://www.youtube.com/results?search_query=gentle+neck+extension+stretch)
 
+#### 收下巴转头
+
+先把头放回正确位置再转头，转动更顺、更不容易代偿。
+
+1. 做一次收下巴，保持住。
+2. 保持收下巴的同时，慢慢向左转头，停 2 秒。
+3. 回到中间，再向右。
+
+- **剂量：** 左右各 5 次
+- **视频示范：** [YouTube 搜索 “chin tuck with rotation exercise”](https://www.youtube.com/results?search_query=chin+tuck+with+rotation+exercise)
+
+#### 斜方肌自我按摩（左右各做）
+
+用手捏揉肩颈交界处最酸的那块肌肉，放松效果立竿见影。
+
+1. 右手越过胸前，捏住左侧肩颈交界处的肌肉。
+2. 慢慢揉捏，同时让头轻轻倒向右侧。
+3. 找到酸痛点按住 10 秒，再换另一侧。
+
+- **剂量：** 每侧 30 秒
+- **注意：** 力度以舒服为准，不要用力按压颈部前侧。
+- **视频示范：** [YouTube 搜索 “upper trapezius self massage”](https://www.youtube.com/results?search_query=upper+trapezius+self+massage)
+
 ### 肩部
 
 #### 耸肩放松
@@ -381,6 +417,28 @@
 
 - **剂量：** 20–30 秒
 - **视频示范：** [YouTube 搜索 “overhead reach stretch seated”](https://www.youtube.com/results?search_query=overhead+reach+stretch+seated)
+
+#### 肩胛骨画圈
+
+比肩部绕环更细致：专注让肩胛骨在背上滑动。
+
+1. 双手放在肩上，手肘朝前。
+2. 用手肘画大圈，感受肩胛骨上提、后收、下沉、前伸。
+3. 向后 8 圈，向前 8 圈。
+
+- **剂量：** 前后各 8 圈
+- **视频示范：** [YouTube 搜索 “scapular circles elbow circles exercise”](https://www.youtube.com/results?search_query=scapular+circles+elbow+circles+exercise)
+
+#### 肩外旋
+
+强化肩袖，把内扣的肩膀拉回来——用鼠标的人尤其需要。
+
+1. 手肘贴住身体两侧，屈肘 90°，掌心相对。
+2. 前臂向外打开，手肘不离开身体，肩胛骨轻轻后收。
+3. 停 2 秒，慢慢回来。
+
+- **剂量：** 12–15 次
+- **视频示范：** [YouTube 搜索 “shoulder external rotation no equipment”](https://www.youtube.com/results?search_query=shoulder+external+rotation+no+equipment)
 
 ### 上背与胸椎
 
@@ -500,6 +558,51 @@
 - **剂量：** 每侧 20–30 秒
 - **视频示范：** [YouTube 搜索 “seated spinal twist chair”](https://www.youtube.com/results?search_query=seated+spinal+twist+chair)
 
+#### 背后握手扩胸
+
+没有门框也能做的扩胸，一下就能把含着的胸打开。
+
+1. 坐在椅子前半部分，双手在背后十指相扣。
+2. 手臂伸直，向后下方拉，同时挺胸。
+3. 下巴微收，保持并深呼吸。
+
+- **剂量：** 20–30 秒，2 次
+- **视频示范：** [YouTube 搜索 “hands clasped behind back chest stretch”](https://www.youtube.com/results?search_query=hands+clasped+behind+back+chest+stretch)
+
+#### 桌面胸椎下压（需站立）
+
+利用桌子把上背和腋下一起拉开，久坐后的“救命”动作。
+
+1. 面对桌子站立，双手放在桌沿，后退一步。
+2. 屈髋，让上身和手臂成一条直线，胸口向地面下沉。
+3. 头放在两臂之间，保持并呼吸。
+
+- **剂量：** 30 秒，2 次
+- **注意：** 确认桌子稳固。
+- **视频示范：** [YouTube 搜索 “desk thoracic extension stretch standing”](https://www.youtube.com/results?search_query=desk+thoracic+extension+stretch+standing)
+
+#### 单臂靠墙扩胸（左右各做，需站立）
+
+一侧一侧地拉开胸肌，比门框拉伸更容易控制力度。
+
+1. 侧对墙站，手臂抬到肩高，手掌和前臂贴墙。
+2. 身体慢慢转离墙面，直到胸前有拉伸感。
+3. 保持并呼吸，肩膀不要耸起。
+
+- **剂量：** 每侧 20–30 秒
+- **视频示范：** [YouTube 搜索 “single arm wall pec stretch”](https://www.youtube.com/results?search_query=single+arm+wall+pec+stretch)
+
+#### 肩胛前推后收
+
+让肩胛骨完整地前后滑动，激活前锯肌和中斜方肌。
+
+1. 双臂向前平举，手肘伸直。
+2. 手臂不弯，只让肩胛骨向前推（背部变圆）。
+3. 再把肩胛骨向后夹回，胸口打开。
+
+- **剂量：** 12 次
+- **视频示范：** [YouTube 搜索 “scapular protraction retraction exercise”](https://www.youtube.com/results?search_query=scapular+protraction+retraction+exercise)
+
 ### 眼睛、手腕与走动
 
 #### 手腕前臂拉伸（左右各做）
@@ -582,6 +685,51 @@
 
 - **剂量：** 1–2 分钟
 - **视频示范：** [YouTube 搜索 “desk break march in place calf raises”](https://www.youtube.com/results?search_query=desk+break+march+in+place+calf+raises)
+
+#### 手腕画圈
+
+给一直悬着打字的手腕换个方向活动。
+
+1. 双手握拳，手臂向前伸。
+2. 手腕慢慢顺时针画圈 10 次。
+3. 再逆时针 10 次，最后甩甩手。
+
+- **剂量：** 每个方向 10 圈
+- **视频示范：** [YouTube 搜索 “wrist circles warm up”](https://www.youtube.com/results?search_query=wrist+circles+warm+up)
+
+#### 远近对焦
+
+交替看近处和远处，锻炼睫状肌，缓解眼睛疲劳带来的探头。
+
+1. 竖起一根手指，放在眼前 25 厘米处，盯住 5 秒。
+2. 再看向窗外或房间最远处 5 秒。
+3. 来回交替，保持眨眼。
+
+- **剂量：** 10 次交替
+- **视频示范：** [YouTube 搜索 “near far focus eye exercise”](https://www.youtube.com/results?search_query=near+far+focus+eye+exercise)
+
+#### 站立侧弯（左右各做，需站立）
+
+站起来拉长身体侧面，顺便让久坐的髋部活动一下。
+
+1. 站立，双脚与髋同宽，一侧手臂举过头顶。
+2. 身体向对侧弯，髋部轻轻推向另一侧。
+3. 保持并呼吸，感受身体侧面被拉长。
+
+- **剂量：** 每侧 20–30 秒
+- **视频示范：** [YouTube 搜索 “standing side bend stretch”](https://www.youtube.com/results?search_query=standing+side+bend+stretch)
+
+#### 椅子深蹲（需站立）
+
+最简单的全身唤醒：坐下、站起，血液循环一下就上来了。
+
+1. 站在椅子前，双脚与肩同宽。
+2. 臀部向后坐，轻碰椅面即站起。
+3. 保持背部挺直、胸口向前。
+
+- **剂量：** 10–15 次
+- **注意：** 膝盖不适时减小幅度。
+- **视频示范：** [YouTube 搜索 “chair squats desk exercise”](https://www.youtube.com/results?search_query=chair+squats+desk+exercise)
 
 ## 工位调整
 

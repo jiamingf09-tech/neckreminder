@@ -208,6 +208,43 @@ final class OverlayController: NSObject {
         }
     }
 
+    /// Achievement unlocked / level up: fireworks and confetti on the active display, then
+    /// fades away by itself. Click-through, never blocks work. Skipped while a reminder shows.
+    func celebrateAchievements(title: String, subtitle: String, duration: TimeInterval = 4.8) {
+        guard backdrops.isEmpty, let screen = Self.activeScreen() else { return }
+        model.symbol = "trophy.fill"
+        model.celebrating = false
+        model.title = title
+        model.subtitle = subtitle
+        model.opacity = 0.22
+        model.secondsLeft = 0
+        let panel = makeBackdrop(on: screen)
+        if let container = panel.contentView {
+            let fireworks = FireworksView(frame: container.bounds)
+            fireworks.autoresizingMask = [.width, .height]
+            container.addSubview(fireworks)
+            let confetti = ConfettiView(frame: container.bounds)
+            confetti.autoresizingMask = [.width, .height]
+            container.addSubview(confetti)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    fireworks.launch(duration: duration - 1.2)
+                    confetti.burst()
+                }
+            }
+        }
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { $0.duration = 0.35; panel.animator().alphaValue = 1 }
+        backdrops = [panel]
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.backdrops.first === panel else { return }
+                self.dismiss(animated: true)
+            }
+        }
+    }
+
     private func makeBackdrop(on screen: NSScreen) -> OverlayPanel {
         let panel = OverlayPanel(frame: screen.frame, clickThrough: true)
         let container = NSView(frame: NSRect(origin: .zero, size: screen.frame.size))

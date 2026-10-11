@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let controller: ReminderController
     private let session: RelaxSession
     private let content: ContentStore
+    private let achievements: AchievementStore
     private var mainWindow: MainWindowController!
     private var statusItem: StatusItemController!
     private var cancellables = Set<AnyCancellable>()
@@ -41,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller = ReminderController(prefs: prefs, stats: stats, notifications: notifications)
         session = RelaxSession(prefs: prefs)
         content = ContentStore()
+        achievements = AchievementStore()
         super.init()
     }
 
@@ -62,8 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(self.notifications)
                 .environmentObject(self.session)
                 .environmentObject(self.controller.learning)
-                .environmentObject(self.controller.bluetooth)
                 .environmentObject(self.content)
+                .environmentObject(self.achievements)
                 .environmentObject(self.mainWindow.navigation))
         }
 
@@ -79,6 +81,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         controller.session = session
         session.onExerciseDone = { [weak self] id in self?.content.markDone(id) }
+        controller.onRelaxCompleted = { [weak self] active, timely in
+            self?.relaxCompleted(activeTime: active, timely: timely)
+        }
         session.onStarted = { [weak self] in self?.controller.relaxSessionStarted() }
         session.onEnded = { [weak self] completed, active, total in
             self?.controller.relaxSessionEnded(completed: completed, activeTime: active, totalTime: total)
@@ -141,6 +146,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         controller.saveState()
         if let activity { ProcessInfo.processInfo.endActivity(activity) }
+    }
+
+    /// Positive feedback right away: XP, streak, and fireworks for new achievements / levels.
+    private func relaxCompleted(activeTime: TimeInterval, timely: Bool) {
+        let routineSeconds = session.routine?.totalSeconds ?? Int(activeTime)
+        let result = achievements.recordSession(activeSeconds: activeTime, routineSeconds: routineSeconds,
+                                                timely: timely, content: content)
+        guard !result.newAchievements.isEmpty || result.leveledUpTo != nil else { return }
+        let title: String
+        if let first = result.newAchievements.first {
+            title = result.newAchievements.count == 1
+                ? tr("解锁成就：\(first.title.text)", "Achievement unlocked: \(first.title.text)")
+                : tr("解锁 \(result.newAchievements.count) 个成就！", "\(result.newAchievements.count) achievements unlocked!")
+        } else {
+            title = tr("升级啦！", "Level up!")
+        }
+        var subtitle = result.newAchievements.map(\.title.text).joined(separator: " · ")
+        if let level = result.leveledUpTo {
+            let levelText = tr("Lv.\(level) \(Achievements.levelTitle(level).text)", "Lv.\(level) \(Achievements.levelTitle(level).text)")
+            subtitle = subtitle.isEmpty ? levelText : subtitle + " · " + levelText
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            MainActor.assumeIsolated {
+                self?.controller.overlay.celebrateAchievements(title: title, subtitle: subtitle)
+            }
+        }
     }
 
     @objc private func showFromOtherInstance() {

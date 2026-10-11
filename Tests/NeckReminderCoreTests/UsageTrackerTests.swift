@@ -72,8 +72,20 @@ final class UsageTrackerTests: XCTestCase {
         XCTAssertLessThan(tracker.continuousUse, 70)
     }
 
-    func testShortAbsencePausesWithoutReset() {
+    func testLeavingRestartsTheCount() {
+        // Default: leaving for a few minutes ends the continuous stretch.
         let tracker = UsageTracker()
+        _ = run(tracker, from: 0, to: 900, idleAt: { _ in 1 })
+        let updates = run(tracker, from: 905, to: 1140, idleAt: { t in t - 900 })
+        XCTAssertTrue(updates.contains { $0.breakCompleted })
+        run(tracker, from: 1145, to: 1200, idleAt: { _ in 1 })
+        XCTAssertLessThan(tracker.continuousUse, 70)
+    }
+
+    func testShortAbsencePausesWithoutResetWhenThresholdIsLonger() {
+        var config = TrackerConfig()
+        config.breakReset = 300
+        let tracker = UsageTracker(config: config)
         run(tracker, from: 0, to: 900, idleAt: { _ in 1 })
         // Away for 4 minutes (grace 3, reset 5).
         run(tracker, from: 905, to: 1140, idleAt: { t in t - 900 })
@@ -108,7 +120,9 @@ final class UsageTrackerTests: XCTestCase {
     }
 
     func testSingleMouseBumpDoesNotEndABreak() {
-        let tracker = UsageTracker()
+        var config = TrackerConfig()
+        config.breakReset = 300
+        let tracker = UsageTracker(config: config)
         run(tracker, from: 0, to: 300, idleAt: { _ in 1 })
         run(tracker, from: 305, to: 500, idleAt: { t in t - 300 })
         XCTAssertEqual(tracker.state, .away)

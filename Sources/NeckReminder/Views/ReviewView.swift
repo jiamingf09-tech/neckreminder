@@ -264,12 +264,13 @@ private struct GapRow: View {
 struct TimelineBar: View {
     let segments: [TimelineSegment]
 
+    /// Four clearly different hues (green / amber / grey / violet) so the bar reads at a glance.
     static func color(_ kind: SegmentKind) -> Color {
         switch kind {
-        case .active: return Color(red: 0.2, green: 0.7, blue: 0.45)
-        case .passive: return Color(red: 0.3, green: 0.55, blue: 0.95)
-        case .away: return Color.gray.opacity(0.35)
-        case .relax: return Palette.accent2.opacity(0.9)
+        case .active: return Color(red: 0.16, green: 0.68, blue: 0.38)   // green: using
+        case .passive: return Color(red: 0.98, green: 0.66, blue: 0.14)  // amber: reading / watching
+        case .away: return Color.gray.opacity(0.30)                     // grey: away
+        case .relax: return Color(red: 0.55, green: 0.36, blue: 0.96)   // violet: relax session
         }
     }
 

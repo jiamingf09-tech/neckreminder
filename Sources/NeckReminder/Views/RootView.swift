@@ -29,6 +29,7 @@ struct RootView: View {
     private var detail: some View {
         switch navigation.section ?? .overview {
         case .overview: OverviewView(navigation: navigation)
+        case .achievements: AchievementsView()
         case .review: ReviewView()
         case .relax: RelaxView()
         case .library: LibraryView()
