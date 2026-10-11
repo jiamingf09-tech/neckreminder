@@ -7,6 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      release_tag:
+        description: Publish a GitHub Release with this tag (e.g. v2.0); the tag is created on the selected commit
+        type: string
+        default: ""
       verify_self_signed:
         description: Also check the self-signed signing path with a throwaway certificate
         type: boolean
@@ -46,8 +50,12 @@ jobs:
 
       - name: Version
         id: version
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          if [[ -n "$RELEASE_TAG" ]]; then
+            VERSION="${RELEASE_TAG#v}"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
           else
             VERSION="2.0"
@@ -97,7 +105,7 @@ jobs:
       # Installers only for main and release tags; feature branches just build and test.
       - name: Package
         id: package
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         run: |
           NAME="NeckReminder-${{ steps.version.outputs.version }}-universal"
           ditto -c -k --keepParent dist/NeckReminder.app "dist/$NAME.zip"
@@ -105,7 +113,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         with:
           name: ${{ steps.package.outputs.name }}
           retention-days: 7
@@ -113,11 +121,14 @@ jobs:
             dist/*.dmg
             dist/*.zip
 
+      # Tag push, or a manual run with release_tag (creates the tag on this commit).
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         uses: softprops/action-gh-release@v2
         with:
-          name: NeckReminder ${{ github.ref_name }}
+          tag_name: ${{ (github.event_name == 'workflow_dispatch' && inputs.release_tag) || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: NeckReminder ${{ (github.event_name == 'workflow_dispatch' && inputs.release_tag) || github.ref_name }}
           files: |
             dist/*.dmg
             dist/*.zip
