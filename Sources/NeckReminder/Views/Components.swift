@@ -65,7 +65,8 @@ struct StatTile: View {
                 Text(value)
                     .scaledFont(22, weight: .semibold, design: .rounded)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                    .minimumScaleFactor(0.45)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -117,6 +118,59 @@ struct WarningBox<Actions: View>: View {
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.12)))
+    }
+}
+
+extension View {
+    /// One line that shrinks to `maxWidth` instead of drawing past its box.
+    func singleLineFitted(maxWidth: CGFloat) -> some View {
+        self
+            .lineLimit(1)
+            .minimumScaleFactor(0.45)
+            .allowsTightening(true)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: maxWidth, alignment: .center)
+    }
+}
+
+/// Buttons and chips that move to the next line instead of overlapping.
+struct WrappingHStack: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let limit = proposal.width ?? .greatestFiniteMagnitude
+        let laid = frames(subviews: subviews, limit: limit)
+        return CGSize(width: proposal.width ?? laid.width, height: laid.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let laid = frames(subviews: subviews, limit: bounds.width)
+        for (view, frame) in zip(subviews, laid.frames) {
+            view.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                       anchor: .topLeading,
+                       proposal: ProposedViewSize(width: frame.width, height: frame.height))
+        }
+    }
+
+    private func frames(subviews: Subviews, limit: CGFloat) -> (width: CGFloat, height: CGFloat, frames: [CGRect]) {
+        var frames: [CGRect] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var width: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + spacing + size.width > limit {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            frames.append(CGRect(x: x, y: y, width: size.width, height: size.height))
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + spacing
+            width = max(width, x - (x > 0 ? spacing : 0))
+        }
+        return (width, y + rowHeight, frames)
     }
 }
 

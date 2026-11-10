@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   build:
-    # One job, one artifact: a universal (Apple Silicon + Intel) app.
+    # One job, one artifact: an Apple Silicon (arm64) disk image.
     runs-on: macos-15
     env:
       HAS_SIGNING: ${{ secrets.MACOS_CERTIFICATE_P12 != '' }}
@@ -76,18 +76,19 @@ jobs:
           IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
         run: scripts/ci-import-cert.sh
 
-      - name: Build universal app
+      - name: Build arm64 app
         env:
           VERSION: ${{ steps.version.outputs.version }}
           BUILD_NUMBER: ${{ steps.version.outputs.build }}
+          ARCHS: arm64
           CODESIGN_IDENTITY: ${{ env.HAS_SIGNING == 'true' && secrets.MACOS_SIGNING_IDENTITY || '-' }}
         run: scripts/build-app.sh
 
-      - name: Verify universal binary
+      - name: Verify arm64 binary
         run: |
           ARCHS="$(lipo -archs dist/NeckReminder.app/Contents/MacOS/NeckReminder)"
           echo "Architectures: $ARCHS"
-          [[ "$ARCHS" == *arm64* && "$ARCHS" == *x86_64* ]]
+          [[ "$ARCHS" == "arm64" ]]
 
       # Optional: notarization. Secrets: NOTARY_APPLE_ID, NOTARY_PASSWORD (app-specific), NOTARY_TEAM_ID
       - name: Notarize
@@ -107,8 +108,7 @@ jobs:
         id: package
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         run: |
-          NAME="NeckReminder-${{ steps.version.outputs.version }}-universal"
-          ditto -c -k --keepParent dist/NeckReminder.app "dist/$NAME.zip"
+          NAME="NeckReminder-${{ steps.version.outputs.version }}-arm64"
           scripts/make-dmg.sh "dist/$NAME.dmg"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
@@ -117,9 +117,7 @@ jobs:
         with:
           name: ${{ steps.package.outputs.name }}
           retention-days: 7
-          path: |
-            dist/*.dmg
-            dist/*.zip
+          path: dist/*.dmg
 
       # Tag push, or a manual run with release_tag (creates the tag on this commit).
       - name: Release
@@ -129,9 +127,7 @@ jobs:
           tag_name: ${{ (github.event_name == 'workflow_dispatch' && inputs.release_tag) || github.ref_name }}
           target_commitish: ${{ github.sha }}
           name: NeckReminder ${{ (github.event_name == 'workflow_dispatch' && inputs.release_tag) || github.ref_name }}
-          files: |
-            dist/*.dmg
-            dist/*.zip
+          files: dist/*.dmg
           generate_release_notes: true
 
   # Proves the free self-signed path works end to end: create a certificate, import and

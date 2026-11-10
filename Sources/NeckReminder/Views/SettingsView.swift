@@ -5,6 +5,7 @@ import NeckReminderCore
 
 struct SettingsView: View {
     @EnvironmentObject var prefs: Preferences
+    @EnvironmentObject var content: ContentStore
     @EnvironmentObject var controller: ReminderController
     @EnvironmentObject var notifications: NotificationManager
     @EnvironmentObject var learning: LearningStore
@@ -246,10 +247,22 @@ struct SettingsView: View {
             }
             Toggle(tr("推荐组合（每次不同，优先最近没做过的动作）", "Varied mixes (favouring exercises you haven't done lately)"),
                    isOn: $prefs.variedRoutines)
+            if !prefs.rareExerciseIDs.isEmpty {
+                ForEach(prefs.rareExerciseIDs, id: \.self) { id in
+                    HStack {
+                        Text(content.exercise(id)?.name.text ?? id)
+                        Spacer(minLength: 8)
+                        Button(tr("恢复正常排次", "Show normally")) { prefs.setRare(id, false) }
+                    }
+                }
+            }
             Toggle(tr("切换动作时播放提示音", "Chime between exercises"), isOn: $prefs.stepChime)
             Toggle(tr("语音播报动作（默认关闭，跟练时也可随时切换）", "Speak each exercise (off by default; can be toggled during a session)"), isOn: $prefs.voiceGuidance)
         } header: {
             Text(tr("放松指南", "Relax guide"))
+        } footer: {
+            Text(tr("在放松指南的动作列表或动作库里，点划掉的眼睛可以把动作标为「较少出现」。推荐组合仍会用到它，但大约只有原来三分之一的次数。点「换一组」会换成另一批动作。",
+                    "In a suggested mix or the exercise library, the crossed-out eye marks an exercise to show less often. It can still appear, about a third as often. Shuffle replaces the set."))
         }
     }
 

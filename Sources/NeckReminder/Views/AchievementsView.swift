@@ -90,8 +90,13 @@ struct AchievementsView: View {
                     ProgressRing(progress: progress, lineWidth: 12,
                                  gradient: LinearGradient(colors: [.yellow, .orange, .pink], startPoint: .top, endPoint: .bottom))
                     VStack(spacing: 0) {
-                        Text("Lv.\(level)").scaledFont(30, weight: .heavy, design: .rounded)
-                        Text("\(log.xp) XP").scaledFont(11, weight: .medium).opacity(0.8)
+                        Text("Lv.\(level)")
+                            .scaledFont(30, weight: .heavy, design: .rounded)
+                            .singleLineFitted(maxWidth: 96)
+                        Text("\(log.xp) XP")
+                            .scaledFont(11, weight: .medium)
+                            .opacity(0.8)
+                            .singleLineFitted(maxWidth: 96)
                     }
                 }
                 .frame(width: 130, height: 130)
@@ -103,7 +108,7 @@ struct AchievementsView: View {
                             "\(max(0, next - log.xp)) XP to Lv.\(level + 1) · \(earned)/\(Achievements.all.count) achievements"))
                         .scaledFont(12.5)
                         .opacity(0.85)
-                    HStack(spacing: 10) {
+                    WrappingHStack(spacing: 10) {
                         heroStat("checkmark.seal.fill", "\(log.completedSessions)", tr("次放松", "sessions"))
                         heroStat("clock.fill", formatMinutes(log.relaxSeconds), tr("累计", "total"))
                         heroStat("flame.fill", "\(log.currentStreak())", tr("天连续", "day streak"))
@@ -137,7 +142,10 @@ struct AchievementsView: View {
         VStack(spacing: 2) {
             HStack(spacing: 4) {
                 Image(systemName: symbol).scaledFont(11)
-                Text(value).scaledFont(15, weight: .bold, design: .rounded)
+                Text(value)
+                    .scaledFont(15, weight: .bold, design: .rounded)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             }
             Text(label).scaledFont(10).opacity(0.75)
         }

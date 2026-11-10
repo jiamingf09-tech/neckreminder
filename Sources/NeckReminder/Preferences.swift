@@ -52,6 +52,8 @@ final class Preferences: ObservableObject {
     @Published var prepSeconds: Int { didSet { set(prepSeconds, "prepSeconds") } }
     /// true: varied mixes; false: the fixed classic routines.
     @Published var variedRoutines: Bool { didSet { set(variedRoutines, "variedRoutines") } }
+    /// Exercises the suggested mix should schedule less often. Not a hard ban.
+    @Published var rareExerciseIDs: [String] { didSet { set(rareExerciseIDs, "rareExerciseIDs") } }
 
     // Schedule
     @Published var schedule: ScheduleRules { didSet { setCodable(schedule, "schedule") } }
@@ -112,6 +114,7 @@ final class Preferences: ObservableObject {
         voiceGuidance = v("voiceGuidance", false)
         prepSeconds = v("prepSeconds", 8)
         variedRoutines = v("variedRoutines", true)
+        rareExerciseIDs = v("rareExerciseIDs", [String]())
 
         if let data = defaults.data(forKey: "schedule"),
            let rules = try? JSONDecoder().decode(ScheduleRules.self, from: data) {
@@ -130,6 +133,16 @@ final class Preferences: ObservableObject {
         hasLaunchedBefore = v("hasLaunchedBefore", false)
 
         L10n.language = language
+    }
+
+    func isRare(_ id: String) -> Bool { rareExerciseIDs.contains(id) }
+
+    func setRare(_ id: String, _ rare: Bool) {
+        if rare {
+            if !rareExerciseIDs.contains(id) { rareExerciseIDs.append(id) }
+        } else if rareExerciseIDs.contains(id) {
+            rareExerciseIDs.removeAll { $0 == id }
+        }
     }
 
     var trackerConfig: TrackerConfig {

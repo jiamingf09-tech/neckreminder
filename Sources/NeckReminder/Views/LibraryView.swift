@@ -3,6 +3,7 @@ import NeckReminderCore
 
 struct LibraryView: View {
     @EnvironmentObject var content: ContentStore
+    @EnvironmentObject var prefs: Preferences
     @EnvironmentObject var session: RelaxSession
     @EnvironmentObject var navigation: Navigation
     @State private var expanded: Set<String> = []
@@ -77,6 +78,12 @@ struct LibraryView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
                                     Text(e.name.text).scaledFont(13, weight: .semibold)
+                                    if prefs.isRare(e.id) {
+                                        Text(tr("较少出现", "less often"))
+                                            .scaledFont(10)
+                                            .padding(.horizontal, 6).padding(.vertical, 1)
+                                            .background(Capsule().fill(Color.orange.opacity(0.15)))
+                                    }
                                     if e.needsStanding {
                                         Text(tr("站立", "standing"))
                                             .scaledFont(10)
@@ -121,6 +128,19 @@ struct LibraryView: View {
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
+                    if !e.isCustom {
+                        Button {
+                            prefs.setRare(e.id, !prefs.isRare(e.id))
+                        } label: {
+                            Image(systemName: prefs.isRare(e.id) ? "eye.slash.fill" : "eye.slash")
+                                .foregroundColor(prefs.isRare(e.id) ? .orange : .secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .help(prefs.isRare(e.id)
+                              ? tr("恢复正常排次", "Show at the normal rate")
+                              : tr("较少出现：推荐组合大约只排原来三分之一的次数",
+                                   "Show less often: suggested mixes pick this about a third as often"))
+                    }
                     if e.isCustom, let custom = content.customExercise(for: e.id) {
                         Button { editingExercise = custom } label: { Image(systemName: "pencil") }
                             .buttonStyle(.borderless)
