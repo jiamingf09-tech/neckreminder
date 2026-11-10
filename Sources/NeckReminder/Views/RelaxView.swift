@@ -21,6 +21,8 @@ struct RoutinePickerView: View {
     @EnvironmentObject var content: ContentStore
     @State private var minutes: Int?
     @State private var seed = UInt64.random(in: 1...(UInt64.max / 2))
+    /// Exercises in the mix currently on screen. The next shuffle leaves them out.
+    @State private var avoided: Set<String> = []
     @State private var editingCombo: CustomRoutine?
     @State private var comboToDelete: CustomRoutine?
 
@@ -28,7 +30,8 @@ struct RoutinePickerView: View {
 
     private var selected: Routine {
         prefs.variedRoutines
-            ? RoutineGenerator.generate(minutes: length, lastDone: content.lastDone, seed: seed)
+            ? RoutineGenerator.generate(minutes: length, lastDone: content.lastDone, seed: seed,
+                                        avoid: avoided, rare: Set(prefs.rareExerciseIDs))
             : ExerciseLibrary.routine(minutes: length)
     }
 
@@ -77,12 +80,23 @@ struct RoutinePickerView: View {
                             .frame(maxWidth: 320)
                             if prefs.variedRoutines {
                                 Button {
-                                    seed = UInt64.random(in: 1...(UInt64.max / 2))
+                                    avoided = Set(routine.steps.map(\.exercise.id))
+                                    var next = UInt64.random(in: 1...(UInt64.max / 2))
+                                    if next == seed { next &+= 1 }
+                                    seed = next
                                 } label: {
                                     Label(tr("换一组", "Shuffle"), systemImage: "shuffle")
                                 }
+                                .help(tr("换成另一批动作，尽量不重复现在这组",
+                                         "Replace this set — avoid repeating the exercises on screen"))
                             }
                             Spacer()
+                        }
+                        if !prefs.rareExerciseIDs.isEmpty {
+                            Text(tr("\(prefs.rareExerciseIDs.count) 个动作已设为较少出现，换一组时会少安排它们。",
+                                    "\(prefs.rareExerciseIDs.count) exercises are set to appear less often, so shuffle picks them less."))
+                                .scaledFont(11)
+                                .foregroundColor(.secondary)
                         }
                         Divider()
                         RoutineStepList(routine: routine)
@@ -163,6 +177,7 @@ struct RoutinePickerView: View {
     private func durationButton(_ m: Int) -> some View {
         let isSelected = m == length
         return Button {
+            if m != length { avoided = [] }
             minutes = m
         } label: {
             VStack(spacing: 2) {
@@ -186,6 +201,7 @@ struct RoutinePickerView: View {
 /// The steps of a routine with durations.
 struct RoutineStepList: View {
     let routine: Routine
+    @EnvironmentObject var prefs: Preferences
 
     var body: some View {
         ForEach(routine.steps) { step in
@@ -194,6 +210,8 @@ struct RoutineStepList: View {
                     .frame(width: 22)
                     .foregroundColor(Palette.accent)
                 Text(step.title)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 if step.exercise.needsStanding {
                     Text(tr("站立", "standing"))
                         .scaledFont(10)
@@ -206,7 +224,24 @@ struct RoutineStepList: View {
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Capsule().fill(Palette.accent.opacity(0.15)))
                 }
-                Spacer()
+                if prefs.isRare(step.exercise.id) {
+                    Text(tr("较少出现", "less often"))
+                        .scaledFont(10)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(Color.orange.opacity(0.15)))
+                }
+                Spacer(minLength: 4)
+                Button {
+                    prefs.setRare(step.exercise.id, !prefs.isRare(step.exercise.id))
+                } label: {
+                    Image(systemName: prefs.isRare(step.exercise.id) ? "eye.slash.fill" : "eye.slash")
+                        .foregroundColor(prefs.isRare(step.exercise.id) ? .orange : .secondary)
+                }
+                .buttonStyle(.borderless)
+                .help(prefs.isRare(step.exercise.id)
+                      ? tr("恢复正常排次", "Show at the normal rate")
+                      : tr("较少出现：推荐组合大约只排原来三分之一的次数",
+                           "Show less often: suggested mixes pick this about a third as often"))
                 Text(formatClock(TimeInterval(step.seconds)))
                     .monospacedDigit()
                     .foregroundColor(.secondary)
@@ -374,10 +409,12 @@ struct RoutinePlayerView: View {
                     Text(preparing ? "\(Int(session.stepRemaining.rounded(.up)))" : formatClock(session.stepRemaining))
                         .scaledFont(preparing ? 48 : 40, weight: .bold, design: .rounded)
                         .monospacedDigit()
+                        .singleLineFitted(maxWidth: 148)
                     if preparing {
                         Text(tr("然后做 \(formatClock(TimeInterval(step.seconds)))", "then \(formatClock(TimeInterval(step.seconds)))"))
                             .scaledFont(11)
                             .foregroundColor(.secondary)
+                            .singleLineFitted(maxWidth: 148)
                     }
                     if session.isPaused {
                         Text(tr("已暂停", "Paused")).scaledFont(10.5).foregroundColor(.orange)

@@ -224,6 +224,64 @@ final class RoutineGeneratorTests: XCTestCase {
         }
     }
 
+    /// "换一组" must replace the set. Recency noise alone used to leave it almost unchanged.
+    func testReshuffleReplacesMostExercises() {
+        for minutes in RoutineGenerator.lengths {
+            let first = RoutineGenerator.generate(minutes: minutes, seed: 4)
+            let ids = Set(first.steps.map(\.exercise.id))
+            let second = RoutineGenerator.generate(minutes: minutes, seed: 4 &+ 50, avoid: ids)
+            XCTAssertEqual(second.totalSeconds, minutes * 60)
+            let next = Set(second.steps.map(\.exercise.id))
+            let replaced = ids.subtracting(next).count
+            XCTAssertGreaterThanOrEqual(replaced * 2, ids.count,
+                                        "\(minutes) min shuffle kept \(ids.intersection(next).sorted())")
+        }
+    }
+
+    /// Once a mix is the clear "least recently done" winner, another seed still repeats it.
+    /// Passing those ids as `avoid` is what actually changes the group.
+    func testReshuffleBreaksRecencyLock() {
+        let now = Date()
+        let locked = RoutineGenerator.generate(minutes: 10, seed: 2, now: now)
+        let lockedIDs = Set(locked.steps.map(\.exercise.id))
+        var lastDone: [String: Date] = [:]
+        for exercise in ExerciseLibrary.all where !lockedIDs.contains(exercise.id) {
+            lastDone[exercise.id] = now
+        }
+        let again = RoutineGenerator.generate(minutes: 10, lastDone: lastDone, seed: 80, now: now)
+        let againIDs = Set(again.steps.map(\.exercise.id))
+        XCTAssertGreaterThanOrEqual(lockedIDs.intersection(againIDs).count, lockedIDs.count / 2)
+
+        let shuffled = RoutineGenerator.generate(minutes: 10, lastDone: lastDone, seed: 80, avoid: lockedIDs, now: now)
+        let next = Set(shuffled.steps.map(\.exercise.id))
+        XCTAssertLessThanOrEqual(lockedIDs.intersection(next).count, lockedIDs.count / 3)
+        XCTAssertEqual(shuffled.totalSeconds, 10 * 60)
+    }
+
+    func testRareExercisesAppearLessOftenButStillCan() {
+        let pool = ExerciseLibrary.all.filter { ["chinTuck", "nods", "isometric"].contains($0.id) }
+        var base = 0
+        var rareHits = 0
+        for seed in UInt64(1)...UInt64(80) {
+            let normal = RoutineGenerator.generate(minutes: 2, pool: pool, seed: seed)
+            let rare = RoutineGenerator.generate(minutes: 2, pool: pool, seed: seed, rare: ["chinTuck"])
+            if normal.steps.first?.exercise.id == "chinTuck" { base += 1 }
+            if rare.steps.first?.exercise.id == "chinTuck" { rareHits += 1 }
+        }
+        XCTAssertGreaterThan(base, 10)
+        XCTAssertGreaterThan(rareHits, 0)
+        XCTAssertLessThan(rareHits * 3, base * 2)
+    }
+
+    func testRareExercisesStillFillTheRoutine() {
+        let rare = Set(ExerciseLibrary.all.map(\.id))
+        for minutes in RoutineGenerator.lengths {
+            let routine = RoutineGenerator.generate(minutes: minutes, seed: 7, rare: rare)
+            XCTAssertEqual(routine.totalSeconds, minutes * 60)
+            XCTAssertFalse(routine.steps.isEmpty)
+        }
+    }
+
     func testCustomRoutineReusesLibrary() {
         var custom = CustomExercise(name: "Desk push-ups", steps: ["Hands on desk", "Lower slowly"], seconds: 40)
         custom.videoQuery = ""

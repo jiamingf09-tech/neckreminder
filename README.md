@@ -2,7 +2,7 @@
 
 一个轻量的 macOS 菜单栏应用：**准确判断你是否在连续使用电脑**，到点后通过系统通知和（可选的）半透明全屏提示提醒你放松颈椎，并内置 2 / 5 / 10 / 15 / 30 分钟的颈椎舒缓跟练指南。
 
-- 原生 Swift（AppKit + SwiftUI），无第三方依赖，单一 **Universal** 二进制（Apple Silicon + Intel），支持 macOS 13 Ventura 及以上。
+- 原生 Swift（AppKit + SwiftUI），无第三方依赖，支持 macOS 13 Ventura 及以上。发布的安装包是 **Apple Silicon（arm64）** 的 `.dmg`；本地 `scripts/build-app.sh` 默认仍打出 universal（arm64 + x86_64）。
 - **只需要“通知”一项权限**。不需要辅助功能、输入监控、屏幕录制、摄像头或麦克风权限；只在打开示范视频时访问 YouTube。
 - **会学习你的习惯**：回到电脑时偶尔问一句“刚才是在使用电脑还是离开了”，在本机训练一个小模型，越用越准。
 
@@ -16,7 +16,7 @@
 | 全屏提醒（可选） | 关闭 / 当前活跃显示器 / 所有显示器；**半透明、点击穿透、不抢焦点**，大号文字；按钮：5 分钟后提醒、10 分钟后提醒、本次忽略、今日忽略，以及更大的“放松颈椎” |
 | 放松颈椎 | 礼炮动画 → 打开应用内舒缓指南，按可用时间选 2 / 5 / 10 / 15 / 30 分钟方案，逐步计时、提示音、可选语音播报；示范视频在应用内播放 |
 | 动作库 | 51 个动作（颈部活动 / 拉伸 / 力量、肩部、上背胸椎、眼睛手腕、走动），可搜索；每个动作可直接“练习”或“加入组合” |
-| 推荐组合 | 按“热身 → 颈部 → 肩部 → 上背 → 收尾”的结构，从动作库里挑最近没做过的动作，每次不同，可“换一组”；也保留经典固定方案 |
+| 推荐组合 | 按“热身 → 颈部 → 肩部 → 上背 → 收尾”的结构挑选动作。「换一组」会换成另一批，而不是只换一两个；不常想做的动作可以标成「较少出现」，排次大约降到原来的三分之一。也保留经典固定方案 |
 | 我的组合 / 我的动作 | 自定义组合（选动作、时长、拖动排序）；新建自己的动作，可以库中动作为模板，同样有计时、左右切换和示范视频 |
 | 动作衔接 | 每个动作前 5–15 秒（默认 8 秒）准备时间，先看清怎么做；语音播报默认关闭，跟练时一键开关 |
 | 放松时防“偷偷干活” | 跟练期间在其他应用里持续操作约 10 秒，会暂停计时并弹出全屏提示：回到颈椎放松 / 暂停颈椎放松 / 取消本次放松。中途取消不会算作休息 |
@@ -82,16 +82,16 @@
 
 ```bash
 swift test                     # 核心算法单元测试
-scripts/build-app.sh           # 生成 dist/NeckReminder.app（universal，ad-hoc 签名）
+scripts/build-app.sh           # 生成 dist/NeckReminder.app（默认 universal；CI 使用 ARCHS=arm64）
 scripts/make-dmg.sh            # 打包 dist/NeckReminder.dmg
 open dist/NeckReminder.app
 ```
 
-`VERSION`、`BUILD_NUMBER`、`CODESIGN_IDENTITY` 环境变量可覆盖版本号与签名身份。
+`VERSION`、`BUILD_NUMBER`、`CODESIGN_IDENTITY`、`ARCHS` 环境变量可覆盖版本号、签名身份和架构。`ARCHS` 默认是 `arm64 x86_64`；CI 传 `ARCHS=arm64`。
 
 ### CI/CD
 
-`.github/workflows/build.yml` 在 `macos-15` 上运行：单元测试 → 构建 **一个 universal 包**（`lipo` 校验同时包含 arm64 与 x86_64）。只有 `main` 分支和 `v*` 标签会打包 `.dmg` / `.zip`；功能分支只编译和测试。推送 `v*` 标签（如 `v2.0`）会自动创建 GitHub Release。
+`.github/workflows/build.yml` 在 `macos-15` 上运行：单元测试 → 构建 **Apple Silicon（arm64）** 应用（`lipo` 校验只有 arm64）。只有 `main` 分支和 `v*` 标签会打包 `.dmg`；功能分支只编译和测试。推送 `v*` 标签（如 `v2.0`）会自动创建 GitHub Release，附件只有这个 arm64 的 dmg。
 
 每次推送后，清理任务只保留最新一次构建的产物和最近 5 次运行记录，产物 7 天后自动过期。
 

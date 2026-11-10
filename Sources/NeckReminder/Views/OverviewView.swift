@@ -35,18 +35,8 @@ struct OverviewView: View {
 
     private var statusCard: some View {
         Card {
-            HStack(spacing: 28) {
-                ZStack {
-                    ProgressRing(progress: controller.continuousUse / Double(max(1, prefs.intervalMinutes) * 60))
-                    VStack(spacing: 2) {
-                        Text(formatMinutes(controller.continuousUse))
-                            .scaledFont(24, weight: .bold, design: .rounded)
-                        Text(tr("连续使用", "continuous use"))
-                            .scaledFont(10.5)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .frame(width: 160, height: 160)
+            HStack(alignment: .center, spacing: 28) {
+                useRing
 
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
@@ -83,7 +73,7 @@ struct OverviewView: View {
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    HStack(spacing: 10) {
+                    WrappingHStack(spacing: 10) {
                         Button {
                             navigation.section = .relax
                         } label: {
@@ -99,6 +89,49 @@ struct OverviewView: View {
                 }
                 Spacer(minLength: 0)
             }
+        }
+    }
+
+    /// Hours and minutes on separate lines so "1 小时 29 分钟" stays inside the stroke.
+    private var useRing: some View {
+        let diameter: CGFloat = 180
+        let lineWidth: CGFloat = 14
+        let inner = diameter - lineWidth - 22
+        return ZStack {
+            ProgressRing(progress: controller.continuousUse / Double(max(1, prefs.intervalMinutes) * 60),
+                         lineWidth: lineWidth)
+            VStack(spacing: 4) {
+                ringTime(controller.continuousUse, maxWidth: inner)
+                Text(tr("连续使用", "continuous use"))
+                    .scaledFont(11)
+                    .foregroundColor(.secondary)
+                    .singleLineFitted(maxWidth: inner)
+            }
+            .frame(width: inner)
+        }
+        .frame(width: diameter, height: diameter)
+    }
+
+    @ViewBuilder
+    private func ringTime(_ seconds: TimeInterval, maxWidth: CGFloat) -> some View {
+        let total = max(0, Int((seconds / 60).rounded(.down)))
+        let hours = total / 60
+        let minutes = total % 60
+        if hours > 0 {
+            VStack(spacing: 0) {
+                Text(tr("\(hours) 小时", "\(hours)h"))
+                    .scaledFont(22, weight: .bold, design: .rounded)
+                    .singleLineFitted(maxWidth: maxWidth)
+                if minutes > 0 {
+                    Text(tr("\(minutes) 分钟", "\(minutes)m"))
+                        .scaledFont(22, weight: .bold, design: .rounded)
+                        .singleLineFitted(maxWidth: maxWidth)
+                }
+            }
+        } else {
+            Text(tr("\(minutes) 分钟", "\(minutes) min"))
+                .scaledFont(26, weight: .bold, design: .rounded)
+                .singleLineFitted(maxWidth: maxWidth)
         }
     }
 
@@ -148,7 +181,7 @@ struct OverviewView: View {
     private var todayTiles: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(tr("今天", "Today")).scaledFont(13, weight: .semibold)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 5), spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: 12)], spacing: 12) {
                 StatTile(symbol: "desktopcomputer", title: tr("使用时长", "Screen time"), value: formatMinutes(stats.today.activeSeconds))
                 StatTile(symbol: "timer", title: tr("最长连续", "Longest stretch"), value: formatMinutes(stats.today.longestStretch))
                 StatTile(symbol: "bell", title: tr("提醒次数", "Reminders"), value: "\(stats.today.reminders)")

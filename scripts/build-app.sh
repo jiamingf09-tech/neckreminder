@@ -14,7 +14,7 @@ APP_NAME="NeckReminder"
 BUNDLE_ID="${BUNDLE_ID:-io.github.jiamingf09.NeckReminder}"
 VERSION="${VERSION:-2.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
-ARCHS="${ARCHS:-arm64 x86_64}"
+ARCHS="${ARCHS:-arm64 x86_64}" # CI publishes an arm64-only dmg via ARCHS=arm64
 IDENTITY="${CODESIGN_IDENTITY:--}"
 
 ARCH_FLAGS=()
