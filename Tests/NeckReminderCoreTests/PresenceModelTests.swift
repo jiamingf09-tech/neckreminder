@@ -351,3 +351,55 @@ final class AchievementTests: XCTestCase {
         XCTAssertEqual(Achievements.xp(activeSeconds: 300, timely: true), 20)
     }
 }
+
+final class HealthExportTests: XCTestCase {
+    func testDailyUseAndRelaxColumns() {
+        var older = DayStats(day: "2026-11-10")
+        older.activeSeconds = 90
+        older.longestStretch = 90
+        var newer = DayStats(day: "2026-11-09")
+        newer.activeSeconds = 3600
+        newer.longestStretch = 1800
+        newer.relaxSeconds = 300
+        newer.relaxSessions = 1
+        newer.reminders = 2
+        newer.breaks = 1
+
+        var log = ActivityLog()
+        log.relaxSeconds = 5000
+        log.completedSessions = 12
+        log.xp = 50
+        log.sessionDays = ["2026-11-09": 1, "2026-11-10": 1]
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 15))!
+
+        let csv = HealthExport.csv(days: [older, newer], log: log, now: now, calendar: calendar, chinese: true)
+        let lines = csv.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+
+        XCTAssertEqual(lines[0], "日期,使用秒,使用分钟,最长连续秒,放松秒,放松分钟,完成放松,提醒次数,自然休息")
+        XCTAssertEqual(lines[1], "2026-11-09,3600,60.0,1800,300,5.0,1,2,1")
+        XCTAssertEqual(lines[2], "2026-11-10,90,1.5,90,0,0.0,0,0,0")
+        XCTAssertEqual(lines[3], "")
+        XCTAssertEqual(lines[4], "项目,数值")
+        XCTAssertTrue(lines.contains("天数,2"))
+        XCTAssertTrue(lines.contains("使用分钟合计,61.5"))
+        XCTAssertTrue(lines.contains("放松分钟合计,5.0"))
+        XCTAssertTrue(lines.contains("累计放松分钟,83.3"))
+        XCTAssertTrue(lines.contains("累计完成放松,12"))
+        XCTAssertTrue(lines.contains("累计经验,50"))
+        XCTAssertTrue(lines.contains("当前连续天数,2"))
+        XCTAssertTrue(lines.contains("最长连续天数,2"))
+        XCTAssertTrue(lines.contains("导出时间,2026-11-10T15:00:00Z"))
+    }
+
+    func testEnglishHeadersAndEmptyLog() {
+        let csv = HealthExport.csv(days: [], log: ActivityLog(), chinese: false)
+        XCTAssertTrue(csv.hasPrefix("date,usage_seconds,usage_minutes,longest_stretch_seconds,relax_seconds,relax_minutes,relax_sessions,reminders,breaks\n"))
+        XCTAssertTrue(csv.contains("\n\nmetric,value\n"))
+        XCTAssertTrue(csv.contains("days,0"))
+        XCTAssertTrue(csv.contains("usage_minutes_total,0.0"))
+        XCTAssertTrue(csv.contains("lifetime_relax_minutes,0.0"))
+    }
+}

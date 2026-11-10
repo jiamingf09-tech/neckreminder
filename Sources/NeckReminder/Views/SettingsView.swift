@@ -9,6 +9,8 @@ struct SettingsView: View {
     @EnvironmentObject var controller: ReminderController
     @EnvironmentObject var notifications: NotificationManager
     @EnvironmentObject var learning: LearningStore
+    @EnvironmentObject var stats: StatsStore
+    @EnvironmentObject var achievements: AchievementStore
 
     @State private var loginEnabled = LoginItem.isEnabled
     @State private var loginNeedsApproval = LoginItem.needsApproval
@@ -24,6 +26,7 @@ struct SettingsView: View {
             appearanceSection
             systemSection
             relaxSection
+            exportSection
         }
         .formStyle(.grouped)
         .onAppear {
@@ -263,6 +266,32 @@ struct SettingsView: View {
         } footer: {
             Text(tr("在放松指南的动作列表或动作库里，点划掉的眼睛可以把动作标为「较少出现」。推荐组合仍会用到它，但大约只有原来三分之一的次数。点「换一组」会换成另一批动作。",
                     "In a suggested mix or the exercise library, the crossed-out eye marks an exercise to show less often. It can still appear, about a third as often. Shuffle replaces the set."))
+        }
+    }
+
+    private var exportSection: some View {
+        let days = stats.allDays()
+        let usage = days.reduce(0.0) { $0 + $1.activeSeconds }
+        return Section {
+            row(tr("已记录", "Recorded"), tr("\(days.count) 天", "\(days.count) days"))
+            row(tr("累计使用", "Use, all recorded days"), formatMinutes(usage))
+            row(tr("累计放松", "Relax, all time"), formatMinutes(achievements.log.relaxSeconds))
+            Button(tr("导出 CSV…", "Export CSV…")) {
+                HealthExporter.present(stats: stats, achievements: achievements)
+            }
+        } header: {
+            Text(tr("健康数据", "Health data"))
+        } footer: {
+            Text(tr("每天的使用时长和放松时长会一直保留，并全部写入 CSV。一天大约 200 字节，用十年大约 0.5 MB。这次更新前已经超过 30 天、被清掉的每日记录无法恢复。文件用 Numbers 或 Excel 打开。",
+                    "Each day's use and relax time is kept indefinitely and included in the CSV. One day is about 200 bytes, so ten years is about 0.5 MB. Days already deleted by the old 30-day limit cannot be restored. Open the file in Numbers or Excel."))
+        }
+    }
+
+    private func row(_ title: String, _ value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value).foregroundColor(.secondary).monospacedDigit()
         }
     }
 

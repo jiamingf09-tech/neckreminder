@@ -200,6 +200,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showSettings(_ sender: Any?) { mainWindow.show(.settings) }
     @objc func showAbout(_ sender: Any?) { mainWindow.show(.about) }
     @objc func showRelax(_ sender: Any?) { mainWindow.show(.relax) }
+    @objc func exportHealthData(_ sender: Any?) {
+        HealthExporter.present(stats: stats, achievements: achievements)
+    }
 
     /// `true` when macOS started us as a login item.
     private static func wasLaunchedAsLoginItem() -> Bool {
@@ -222,6 +225,7 @@ enum MainMenu {
         appMenu.addItem(withTitle: tr("关于 NeckReminder", "About NeckReminder"), action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "").target = target
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: tr("设置…", "Settings…"), action: #selector(AppDelegate.showSettings(_:)), keyEquivalent: ",").target = target
+        appMenu.addItem(withTitle: tr("导出健康数据…", "Export Health Data…"), action: #selector(AppDelegate.exportHealthData(_:)), keyEquivalent: "").target = target
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: tr("隐藏 NeckReminder", "Hide NeckReminder"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let hideOthers = appMenu.addItem(withTitle: tr("隐藏其他", "Hide Others"), action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
