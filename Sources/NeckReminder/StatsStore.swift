@@ -47,6 +47,12 @@ final class StatsStore: ObservableObject {
         }
     }
 
+    /// Flush today's numbers, then the days still on disk (at most the last 30), oldest first.
+    func daysForExport() -> [DayStats] {
+        save()
+        return history.values.sorted { $0.day < $1.day }
+    }
+
     func save() {
         dirtyCount = 0
         history[today.day] = today

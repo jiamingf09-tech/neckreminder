@@ -9,6 +9,8 @@ struct SettingsView: View {
     @EnvironmentObject var controller: ReminderController
     @EnvironmentObject var notifications: NotificationManager
     @EnvironmentObject var learning: LearningStore
+    @EnvironmentObject var stats: StatsStore
+    @EnvironmentObject var achievements: AchievementStore
 
     @State private var loginEnabled = LoginItem.isEnabled
     @State private var loginNeedsApproval = LoginItem.needsApproval
@@ -24,6 +26,7 @@ struct SettingsView: View {
             appearanceSection
             systemSection
             relaxSection
+            exportSection
         }
         .formStyle(.grouped)
         .onAppear {
@@ -263,6 +266,33 @@ struct SettingsView: View {
         } footer: {
             Text(tr("在放松指南的动作列表或动作库里，点划掉的眼睛可以把动作标为「较少出现」。推荐组合仍会用到它，但大约只有原来三分之一的次数。点「换一组」会换成另一批动作。",
                     "In a suggested mix or the exercise library, the crossed-out eye marks an exercise to show less often. It can still appear, about a third as often. Shuffle replaces the set."))
+        }
+    }
+
+    private var exportSection: some View {
+        let days = stats.lastDays(30)
+        let usage = days.reduce(0.0) { $0 + $1.activeSeconds }
+        let relax = days.reduce(0.0) { $0 + $1.relaxSeconds }
+        return Section {
+            row(tr("最近 30 天使用", "Use, last 30 days"), formatMinutes(usage))
+            row(tr("最近 30 天放松", "Relax, last 30 days"), formatMinutes(relax))
+            row(tr("累计放松", "Relax, all time"), formatMinutes(achievements.log.relaxSeconds))
+            Button(tr("导出 CSV…", "Export CSV…")) {
+                HealthExporter.present(stats: stats, achievements: achievements)
+            }
+        } header: {
+            Text(tr("健康数据", "Health data"))
+        } footer: {
+            Text(tr("导出最近 30 天每天的电脑使用时长、最长连续使用、颈椎放松时长、完成次数、提醒次数和自然休息。累计放松、经验和连续天数写在表格末尾。文件用 Numbers 或 Excel 打开。",
+                    "Exports each of the last 30 days: computer-use time, longest stretch, neck-relax time, completed sessions, reminders and breaks. Lifetime relax time, XP and streaks are at the bottom. Open the file in Numbers or Excel."))
+        }
+    }
+
+    private func row(_ title: String, _ value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value).foregroundColor(.secondary).monospacedDigit()
         }
     }
 

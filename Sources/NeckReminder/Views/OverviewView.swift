@@ -6,6 +6,7 @@ struct OverviewView: View {
     @EnvironmentObject var controller: ReminderController
     @EnvironmentObject var prefs: Preferences
     @EnvironmentObject var stats: StatsStore
+    @EnvironmentObject var achievements: AchievementStore
     @EnvironmentObject var notifications: NotificationManager
     @EnvironmentObject var learning: LearningStore
 
@@ -196,7 +197,18 @@ struct OverviewView: View {
         let maxSeconds = max(3600, days.map(\.activeSeconds).max() ?? 0)
         return Card {
             VStack(alignment: .leading, spacing: 12) {
-                Text(tr("最近 7 天使用时长", "Screen time, last 7 days")).scaledFont(13, weight: .semibold)
+                HStack {
+                    Text(tr("最近 7 天使用时长", "Screen time, last 7 days")).scaledFont(13, weight: .semibold)
+                    Spacer()
+                    Button {
+                        HealthExporter.present(stats: stats, achievements: achievements)
+                    } label: {
+                        Label(tr("导出健康数据…", "Export health data…"), systemImage: "square.and.arrow.up")
+                    }
+                    .buttonStyle(.borderless)
+                    .help(tr("导出最近 30 天的电脑使用时间和颈椎放松时间",
+                             "Export the last 30 days of computer-use and neck-relax time"))
+                }
                 HStack(alignment: .bottom, spacing: 14) {
                     ForEach(days) { day in
                         VStack(spacing: 6) {
