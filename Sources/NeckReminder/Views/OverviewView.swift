@@ -206,8 +206,8 @@ struct OverviewView: View {
                         Label(tr("导出健康数据…", "Export health data…"), systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(.borderless)
-                    .help(tr("导出最近 30 天的电脑使用时间和颈椎放松时间",
-                             "Export the last 30 days of computer-use and neck-relax time"))
+                    .help(tr("导出全部已保留的每日电脑使用时间和颈椎放松时间",
+                             "Export every recorded day of computer-use and neck-relax time"))
                 }
                 HStack(alignment: .bottom, spacing: 14) {
                     ForEach(days) { day in

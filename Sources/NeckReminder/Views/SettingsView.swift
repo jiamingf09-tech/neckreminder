@@ -270,12 +270,11 @@ struct SettingsView: View {
     }
 
     private var exportSection: some View {
-        let days = stats.lastDays(30)
+        let days = stats.allDays()
         let usage = days.reduce(0.0) { $0 + $1.activeSeconds }
-        let relax = days.reduce(0.0) { $0 + $1.relaxSeconds }
         return Section {
-            row(tr("最近 30 天使用", "Use, last 30 days"), formatMinutes(usage))
-            row(tr("最近 30 天放松", "Relax, last 30 days"), formatMinutes(relax))
+            row(tr("已记录", "Recorded"), tr("\(days.count) 天", "\(days.count) days"))
+            row(tr("累计使用", "Use, all recorded days"), formatMinutes(usage))
             row(tr("累计放松", "Relax, all time"), formatMinutes(achievements.log.relaxSeconds))
             Button(tr("导出 CSV…", "Export CSV…")) {
                 HealthExporter.present(stats: stats, achievements: achievements)
@@ -283,8 +282,8 @@ struct SettingsView: View {
         } header: {
             Text(tr("健康数据", "Health data"))
         } footer: {
-            Text(tr("导出最近 30 天每天的电脑使用时长、最长连续使用、颈椎放松时长、完成次数、提醒次数和自然休息。累计放松、经验和连续天数写在表格末尾。文件用 Numbers 或 Excel 打开。",
-                    "Exports each of the last 30 days: computer-use time, longest stretch, neck-relax time, completed sessions, reminders and breaks. Lifetime relax time, XP and streaks are at the bottom. Open the file in Numbers or Excel."))
+            Text(tr("每天的使用时长和放松时长会一直保留，并全部写入 CSV。一天大约 200 字节，用十年大约 0.5 MB。这次更新前已经超过 30 天、被清掉的每日记录无法恢复。文件用 Numbers 或 Excel 打开。",
+                    "Each day's use and relax time is kept indefinitely and included in the CSV. One day is about 200 bytes, so ten years is about 0.5 MB. Days already deleted by the old 30-day limit cannot be restored. Open the file in Numbers or Excel."))
         }
     }
 

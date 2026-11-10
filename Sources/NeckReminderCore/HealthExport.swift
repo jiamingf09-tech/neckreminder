@@ -1,7 +1,7 @@
 import Foundation
 
-/// A spreadsheet of the health numbers NeckReminder already keeps: daily computer-use
-/// time, neck-relax time, and the lifetime relax totals that outlive the 30-day daily log.
+/// A spreadsheet of the health numbers NeckReminder keeps: every recorded day's computer-use
+/// time and neck-relax time, plus lifetime relax totals.
 public enum HealthExport {
     /// UTF-8 CSV without a byte-order mark. Days are written oldest first.
     /// Minutes use a dot as the decimal separator so the file stays one column per field.

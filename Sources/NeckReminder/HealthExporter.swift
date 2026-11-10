@@ -15,8 +15,8 @@ enum HealthExporter {
         panel.nameFieldStringValue = "NeckReminder-health-\(DayKey.string(for: Date())).csv"
         panel.title = tr("导出健康数据", "Export health data")
         panel.prompt = tr("导出", "Export")
-        panel.message = tr("最近 30 天的电脑使用时间和颈椎放松时间，可用 Numbers 或 Excel 打开。",
-                           "The last 30 days of computer-use and neck-relax time, for Numbers or Excel.")
+        panel.message = tr("全部已保留的每日电脑使用时间和颈椎放松时间，可用 Numbers 或 Excel 打开。",
+                           "Every recorded day of computer-use and neck-relax time, for Numbers or Excel.")
 
         let finish: (NSApplication.ModalResponse) -> Void = { response in
             guard response == .OK, let url = panel.url else { return }
